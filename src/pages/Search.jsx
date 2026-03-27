@@ -322,7 +322,7 @@ export default function Search() {
             <div className="contact-items">
               <div className="contact-item"><span className="contact-icon"><MailIcon /></span>office.deanres@jssstuniv.in</div>
               <div className="contact-item"><span className="contact-icon"><PhoneIcon /></span>0821 241 1305</div>
-              <div className="contact-item"><span className="contact-icon"><MapPinIcon /></span>Mysuru, Karnataka — 570 006</div>
+              <div className="contact-item"><span className="contact-icon"><MapPinIcon /></span>JSS Science and Technology University, Mysuru, Karnataka — 570 006</div>
             </div>
           </div>
         </GlassCard>
