@@ -1319,3 +1319,157 @@ html, body {
     font-size: 0.8rem;
   }
 }
+
+/* ===================== FINAL RESPONSIVE + BUTTON FIX PATCH ===================== */
+
+/* GLOBAL SAFETY */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+* {
+  min-width: 0;
+}
+
+/* BUTTON FIX (CRITICAL — SHAPE ISSUE) */
+.btn-primary,
+.btn-secondary {
+  max-width: 100%;
+  text-align: center;
+
+  height: 48px;
+  min-height: 48px;
+
+  border-radius: 999px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* MOBILE BUTTON ADJUST */
+@media (max-width: 480px) {
+  .btn-primary,
+  .btn-secondary {
+    white-space: normal;
+    line-height: 1.3;
+    padding: 0.65rem 1rem;
+  }
+}
+
+/* NAVBAR OVERFLOW FIX */
+.navbar {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.navbar-inner {
+  min-width: 0;
+}
+
+.navbar-nav {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.navbar-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-btn {
+  flex-shrink: 0;
+}
+
+/* GRID SAFETY */
+.info-grid,
+.results-grid,
+.subs-grid,
+.stats-grid {
+  width: 100%;
+}
+
+/* EXTREME SMALL DEVICES */
+@media (max-width: 360px) {
+  .info-grid,
+  .results-grid,
+  .subs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* TEXT OVERFLOW FIX */
+.result-title,
+.result-meta-value,
+.result-expanded-value,
+.contact-info-value {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.result-doi-link {
+  word-break: break-all;
+}
+
+/* FORM SAFETY */
+.form-input,
+.form-select,
+.form-textarea {
+  max-width: 100%;
+}
+
+.file-upload-area {
+  width: 100%;
+}
+
+/* FLEX OVERFLOW FIX */
+.hero-actions,
+.contact-inner,
+.filter-row {
+  min-width: 0;
+}
+
+.hero-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* MOBILE HERO BUTTON ALIGNMENT */
+@media (max-width: 620px) {
+  .hero-actions {
+    align-items: stretch;
+  }
+}
+
+/* CONTACT PAGE FIX */
+.contact-page-layout {
+  width: 100%;
+}
+
+.contact-page-form,
+.contact-page-info {
+  min-width: 0;
+}
+
+/* MODAL FIX */
+.modal-box {
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* EXTRA SMALL DEVICE TUNING */
+@media (max-width: 350px) {
+  .hero-title {
+    font-size: 1.25rem;
+  }
+
+  .page-title {
+    font-size: 1.1rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    font-size: 0.8rem;
+  }
+}
