@@ -14,9 +14,18 @@ function calculateMarks(data) {
   const authorType    = (data.authorType    || "");
   const coAuthors     = data.authors        || [];
 
-  const jssCoAuthors    = coAuthors.filter(a => !a.organization || a.organization.trim() === "");
+  const jssCoAuthors    = coAuthors.filter(a => {
+    const org = (a.organization || "").trim().toLowerCase();
+    return org === "" || org.includes("jss science and technology") || org.includes("jssstu");
+  });
   const totalJssAuthors = 1 + jssCoAuthors.length;
-  const hasIntlCollab   = coAuthors.some(a => a.organization && a.organization.trim() !== "");
+  const hasIntlCollab   = coAuthors.some(a => {
+    const collabType = (a.collabType || "").toLowerCase();
+    const country    = (a.country   || "").trim().toLowerCase();
+    if (collabType === "international") return true;
+    if (country && country !== "india") return true;
+    return false;
+  });
   const intlBonus       = hasIntlCollab ? 1 : 0;
   const isScopusWos     = ["scopus","sci","scie","esci","web of science"].some(k => indexing.includes(k));
 
@@ -178,7 +187,13 @@ export async function buildMergedPdf({ ackNumber, data, submittedAt }, uploadedP
 
   if (data.authors && data.authors.length > 0) {
     curY-=4; sectionHead("Co-Authors");
-    data.authors.forEach((a,i) => row(`Author ${i+2}`, `${a.prefix||""} ${a.name}${a.organization?` — ${a.organization}`:""}`));
+    data.authors.forEach((a,i) => {
+      const roleLabel   = a.authorRole ? ` (${a.authorRole})` : "";
+      const collabLabel = a.collabType ? ` [${a.collabType}]` : "";
+      const countryLabel= a.country ? ` · ${a.country}` : "";
+      const orgLabel    = a.organization ? ` — ${a.organization}` : " — JSS Science and Technology University";
+      row(`Author ${i+2}${roleLabel}`, `${a.prefix||""} ${a.name}${orgLabel}${collabLabel}${countryLabel}`);
+    });
   }
 
   /* ── Marks Section ── */
@@ -204,7 +219,7 @@ export async function buildMergedPdf({ ackNumber, data, submittedAt }, uploadedP
   if (marks.hasIntlCollab) {
     curY-=4;
     currentPage.drawRectangle({ x:40, y:curY-14, width:220, height:16, color:rgb(0.9,0.95,1.0), borderColor:rgb(0.3,0.5,0.9), borderWidth:0.6 });
-    currentPage.drawText("+ 1 pt: International Collaboration bonus applied", { x:46, y:curY-10, font:fontBold, size:7.5, color:rgb(0.1,0.2,0.7) });
+    currentPage.drawText("+ 1 pt: International Collaboration bonus (non-India author verified)", { x:46, y:curY-10, font:fontBold, size:7.5, color:rgb(0.1,0.2,0.7) });
     curY-=20;
   }
 

@@ -160,6 +160,16 @@ export async function sendPaperNotifyDean({ ackNumber, data, submittedAt, pdfBuf
       <div class="field-row"><span class="field-label">DOI</span><span class="field-value">${data.doi || "—"}</span></div>
       <div class="field-row"><span class="field-label">Preprint</span><span class="field-value">${data.preprintAvailable || "—"}</span></div>
       <div class="field-row"><span class="field-label">Uploaded File</span><span class="field-value">${data.fileName || "—"}</span></div>
+      ${data.authors && data.authors.length > 0 ? `
+      <div class="section-head" style="margin-top:10px;">Co-Authors</div>
+      ${data.authors.map((a, i) => {
+        const roleLabel   = a.authorRole ? ` <span style="color:#f56e00;font-size:11px;">[${a.authorRole}]</span>` : "";
+        const collabLabel = a.collabType ? ` <span style="color:#1e56c8;font-size:11px;">${a.collabType}</span>` : "";
+        const countryFlag = a.country && a.country !== "India" ? ` 🌍 <strong style="color:#1e56c8;">${a.country}</strong>` : (a.country ? ` ${a.country}` : "");
+        const org = a.organization || "JSS Science and Technology University";
+        return `<div class="field-row"><span class="field-label">Author ${i+2}${roleLabel}</span><span class="field-value">${a.prefix||""} ${a.name} — ${org}${collabLabel}${countryFlag}</span></div>`;
+      }).join("")}
+      ` : ""}
     </div>
   `);
 
