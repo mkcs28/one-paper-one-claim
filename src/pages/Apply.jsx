@@ -22,6 +22,8 @@ const DOMAIN_TYPES       = ["Multidisciplinary","Interdisciplinary","Core / Spec
 const ARTICLE_TYPES      = ["Original Research","Review Article","Survey","Case Study","Technical Note","Short Communication","Letter to Editor","Conference Paper","Book Chapter","Systematic Review","Meta-Analysis","Other"];
 
 const HOST_UNIVERSITY    = "JSS Science and Technology University";
+const HOST_UNIVERSITY_FULL = "JSS Science and Technology University, Mysuru";
+const ORG_OPTIONS        = [HOST_UNIVERSITY_FULL, "Others"];
 
 const COUNTRIES = [
   "Afghanistan","Albania","Algeria","Andorra","Angola","Argentina","Armenia","Australia","Austria","Azerbaijan",
@@ -44,10 +46,11 @@ const COUNTRIES = [
   "Vietnam","Yemen","Zambia","Zimbabwe"
 ];
 
-const EMPTY_AUTHOR = { prefix:"", name:"", department:"", organization:"", contact:"", email:"", authorRole:"", collabType:"", country:"India" };
+const EMPTY_AUTHOR = { prefix:"", name:"", department:"", orgSelect:"", organization:"", contact:"", email:"", authorRole:"", collabType:"", country:"India" };
 
 const INIT = {
   prefix:"", name:"", empId:"", designation:"", department:"",
+  orgSelect:"", organization:"",
   phone:"", email:"",
   paperTitle:"", paperType:"", authorType:"",
   authors:[],
@@ -67,6 +70,8 @@ function validate(form) {
   if (!form.empId.trim())       e.empId          = "Employee ID required.";
   if (!form.designation)        e.designation    = "Designation required.";
   if (!form.department)         e.department     = "Department required.";
+  if (!form.orgSelect)          e.orgSelect      = "Organisation required.";
+  if (form.orgSelect === "Others" && !form.organization.trim()) e.organization = "Please enter your organisation name.";
   if (!form.phone.trim())       e.phone          = "Phone number required.";
   if (!form.email.trim())       e.email          = "Email required.";
   else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "Enter a valid email.";
@@ -115,13 +120,16 @@ function calculateMarks(formData) {
   const authorType  = (formData.authorType || "");
   const coAuthors   = formData.authors || [];
 
-  // Host university: JSS Science and Technology University
-  // Collaboration: any co-author whose organization is NOT JSSSTU (or is external)
+  // Host university: JSS Science and Technology University, Mysuru
+  // Submitter is JSSSTU if orgSelect === HOST_UNIVERSITY_FULL (or blank legacy)
+  const submitterIsJss = !formData.orgSelect || formData.orgSelect === HOST_UNIVERSITY_FULL;
+
+  // Co-authors at JSSSTU: orgSelect is JSSSTU or blank
   const jssCoAuthors = coAuthors.filter(a => {
-    const org = (a.organization || "").trim().toLowerCase();
-    return org === "" || org.includes("jss science and technology") || org.includes("jssstu");
+    const sel = (a.orgSelect || "").trim();
+    return sel === "" || sel === HOST_UNIVERSITY_FULL;
   });
-  const totalJssAuthors = 1 + jssCoAuthors.length; // submitter + jss co-authors
+  const totalJssAuthors = (submitterIsJss ? 1 : 0) + jssCoAuthors.length;
 
   // International collaboration: any co-author with country != India (or non-empty non-India country)
   // Even ONE international author qualifies for international collab marks
@@ -329,12 +337,13 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
   };
 
   sectionHead("Submitter Information");
-  row("Name",        `${formData.prefix||""} ${formData.name}`);
-  row("Employee ID", formData.empId);
-  row("Designation", formData.designation);
-  row("Department",  formData.department);
-  row("Email",       formData.email);
-  row("Phone",       formData.phone);
+  row("Name",         `${formData.prefix||""} ${formData.name}`);
+  row("Employee ID",  formData.empId);
+  row("Designation",  formData.designation);
+  row("Department",   formData.department);
+  row("Organisation", formData.orgSelect === "Others" ? (formData.organization || "—") : (formData.orgSelect || HOST_UNIVERSITY_FULL));
+  row("Email",        formData.email);
+  row("Phone",        formData.phone);
 
   curY -= 6;
   sectionHead("Paper Details");
@@ -356,10 +365,11 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
     curY -= 4;
     sectionHead("Co-Authors");
     formData.authors.forEach((a, i) => {
-      const collabLabel = a.collabType ? ` [${a.collabType}]` : "";
+      const collabLabel  = a.collabType ? ` [${a.collabType}]` : "";
       const countryLabel = a.country && a.country !== "India" ? ` · ${a.country}` : (a.country === "India" ? " · India" : "");
-      const roleLabel = a.authorRole ? ` (${a.authorRole})` : "";
-      const orgLabel = a.organization ? ` — ${a.organization}` : ` — ${HOST_UNIVERSITY}`;
+      const roleLabel    = a.authorRole ? ` (${a.authorRole})` : "";
+      const resolvedOrg  = a.orgSelect === "Others" ? (a.organization || "—") : (a.orgSelect || HOST_UNIVERSITY_FULL);
+      const orgLabel     = ` — ${resolvedOrg}`;
       row(`Author ${i+2}${roleLabel}`, `${a.prefix||""} ${a.name}${orgLabel}${collabLabel}${countryLabel}`);
     });
   }
@@ -608,6 +618,24 @@ export default function Apply() {
               <input id="email" name="email" type="email" className="form-input" placeholder="name@jssstuniv.in" value={form.email} onChange={handleChange}/>
             </Field>
           </div>
+          <div className={form.orgSelect === "Others" ? "form-grid" : ""}>
+            <Field id="orgSelect" label="Organisation" required error={errors.orgSelect}>
+              <select id="orgSelect" name="orgSelect" className="form-select" value={form.orgSelect} onChange={e => {
+                const val = e.target.value;
+                setForm(p => ({ ...p, orgSelect: val, organization: val !== "Others" ? "" : p.organization }));
+                if (errors.orgSelect) setErrors(p => ({ ...p, orgSelect: "" }));
+                if (errors.organization) setErrors(p => ({ ...p, organization: "" }));
+              }}>
+                <option value="">Select organisation</option>
+                {ORG_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </Field>
+            {form.orgSelect === "Others" && (
+              <Field id="organization" label="Enter Organisation Name" required error={errors.organization}>
+                <input id="organization" name="organization" type="text" className="form-input" placeholder="Full name of your university / institution" value={form.organization} onChange={handleChange}/>
+              </Field>
+            )}
+          </div>
 
           {/* ── 2. Paper Details ── */}
           <div className="form-section-label" style={{marginTop:"1.3rem"}}>Paper Details</div>
@@ -733,15 +761,29 @@ export default function Apply() {
                       <input type="text" className="form-input" placeholder="Department" value={author.department} onChange={e=>updateAuthor(idx,"department",e.target.value)}/>
                     </div>
                     <div className="form-group">
-                      <label className="form-label">
-                        Organization
-                        {author.organization && !(author.organization.toLowerCase().includes("jss science and technology") || author.organization.toLowerCase().includes("jssstu")) && (
-                          <span style={{marginLeft:"0.4rem",fontSize:"0.68rem",color:"var(--text-muted)",fontWeight:400,textTransform:"none"}}>(Collaboration)</span>
-                        )}
-                      </label>
-                      <input type="text" className="form-input" placeholder={`University / Institution (leave blank if ${HOST_UNIVERSITY})`} value={author.organization} onChange={e=>updateAuthor(idx,"organization",e.target.value)}/>
+                      <label className="form-label">Organisation <span className="required">*</span></label>
+                      <select className="form-select" value={author.orgSelect}
+                        onChange={e=>{
+                          const val = e.target.value;
+                          updateAuthorMulti(idx,{
+                            orgSelect: val,
+                            organization: val !== "Others" ? "" : author.organization,
+                            // Auto-set collabType: JSSSTU = National, Others = keep current or blank
+                            collabType: val === HOST_UNIVERSITY_FULL ? "National" : author.collabType,
+                            country:    val === HOST_UNIVERSITY_FULL ? "India"    : author.country,
+                          });
+                        }}>
+                        <option value="">Select organisation</option>
+                        {ORG_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+                      </select>
                     </div>
                   </div>
+                  {author.orgSelect === "Others" && (
+                    <div className="form-group">
+                      <label className="form-label">Enter Organisation Name <span className="required">*</span></label>
+                      <input type="text" className="form-input" placeholder="Full name of university / institution" value={author.organization} onChange={e=>updateAuthor(idx,"organization",e.target.value)}/>
+                    </div>
+                  )}
                   <div className="form-grid">
                     <div className="form-group"><label className="form-label">Contact Number</label><input type="tel" className="form-input" placeholder="+91 XXXXX XXXXX" value={author.contact} onChange={e=>updateAuthor(idx,"contact",e.target.value)}/></div>
                     <div className="form-group"><label className="form-label">Email</label><input type="email" className="form-input" placeholder="author@email.com" value={author.email} onChange={e=>updateAuthor(idx,"email",e.target.value)}/></div>
