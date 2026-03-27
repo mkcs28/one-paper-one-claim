@@ -4,7 +4,8 @@ const CoAuthorSchema = new mongoose.Schema({
   prefix:       { type: String, default: "" },
   name:         { type: String, default: "" },
   department:   { type: String, default: "" },
-  organization: { type: String, default: "" },
+  orgSelect:    { type: String, default: "" },   // "JSS Science and Technology University, Mysuru" | "Others"
+  organization: { type: String, default: "" },   // custom name when orgSelect === "Others"
   contact:      { type: String, default: "" },
   email:        { type: String, default: "" },
   authorRole:   { type: String, default: "" },   // First Author / Co-Author / Corresponding Author
@@ -18,13 +19,15 @@ const PaperSchema = new mongoose.Schema(
     ackNumber: { type: String, unique: true, required: true },
 
     /* Personal */
-    prefix:      { type: String, required: true },
-    name:        { type: String, required: true, trim: true },
-    empId:       { type: String, required: true, trim: true },
-    designation: { type: String, required: true },
-    department:  { type: String, required: true },
-    phone:       { type: String, required: true },
-    email:       { type: String, required: true, lowercase: true, trim: true },
+    prefix:       { type: String, required: true },
+    name:         { type: String, required: true, trim: true },
+    empId:        { type: String, required: true, trim: true },
+    designation:  { type: String, required: true },
+    department:   { type: String, required: true },
+    orgSelect:    { type: String, default: "" },   // "JSS Science and Technology University, Mysuru" | "Others"
+    organization: { type: String, default: "" },   // custom org name when orgSelect === "Others"
+    phone:        { type: String, required: true },
+    email:        { type: String, required: true, lowercase: true, trim: true },
 
     /* Paper */
     paperTitle:  { type: String, required: true, trim: true },
