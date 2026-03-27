@@ -7,6 +7,9 @@ const CoAuthorSchema = new mongoose.Schema({
   organization: { type: String, default: "" },
   contact:      { type: String, default: "" },
   email:        { type: String, default: "" },
+  authorRole:   { type: String, default: "" },   // First Author / Co-Author / Corresponding Author
+  collabType:   { type: String, default: "" },   // National / International
+  country:      { type: String, default: "India" },
 }, { _id: false });
 
 const PaperSchema = new mongoose.Schema(
@@ -34,13 +37,14 @@ const PaperSchema = new mongoose.Schema(
     /* Journal */
     journal:        { type: String, required: true },
     publisher:      { type: String, required: true },
+    publisherType:  { type: String, default: "" },
     publishingDate: { type: String, required: true },
     accessType:     { type: String, default: "" },
     openAccessAmount: { type: String, default: "" },
     indexing:       { type: String, required: true },
     quartile:       { type: String, default: "" },
 
-    /* Optional */
+    /* DOI — mandatory from frontend */
     doi:               { type: String, default: "" },
     preprintAvailable: { type: String, default: "" },
 
