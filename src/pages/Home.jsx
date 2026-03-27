@@ -23,35 +23,33 @@ const UploadIcon    = () => <svg viewBox="0 0 24 24" fill="none" strokeWidth="2"
 const CalendarIcon  = () => <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
 const LockIcon      = () => <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 const LayerIcon     = () => <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/></svg>;
+const AlertIcon     = () => <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 
 const REQUIRED_FIELDS = [
-  { label: "Prefix Title (Mr / Dr / Ms / Mrs / Prof)",         Icon: UserIcon },
-  { label: "Full Name & Employee ID",                          Icon: HashIcon },
-  { label: "Designation & Department",                         Icon: BriefcaseIcon },
-  { label: "Phone Number & Email",                             Icon: PhoneIcon },
-  { label: "Paper Title",                                      Icon: FileIcon },
+  { label: "Prefix Title (Mr / Dr / Ms / Mrs / Prof)",           Icon: UserIcon },
+  { label: "Full Name & Employee ID",                            Icon: HashIcon },
+  { label: "Designation & Department",                           Icon: BriefcaseIcon },
+  { label: "Phone Number & Email",                               Icon: PhoneIcon },
+  { label: "Paper Title",                                        Icon: FileIcon },
   { label: "Paper Type (Journal / Conference / Book Chapter / Book)", Icon: LayersIcon },
-  { label: "Type of Article (Original Research / Review etc.)",Icon: LayerIcon },
-  { label: "Domain Type (Multidisciplinary / Core etc.)",      Icon: BuildingIcon },
-  { label: "Author Type & Additional Author Details",          Icon: UsersIcon },
-  { label: "Journal / Venue Name, Publisher & Date",           Icon: BookOpenIcon },
-  { label: "Type of Access + Open Access Fee (if applicable)", Icon: LockIcon },
-  { label: "Indexing (Scopus / SCI / UGC etc.)",               Icon: TagIcon },
-  { label: "Quartile (Q1 – Q4) — for Journal, Book, Chapter", Icon: BarChartIcon },
-  { label: "PDF of Paper (max 2 MB, PDF only)",                Icon: UploadIcon },
-  { label: "Publishing Date",                                  Icon: CalendarIcon },
-];
-
-const OPTIONAL_FIELDS = [
-  "DOI (Digital Object Identifier)",
-  "Preprint Availability (Yes / No)",
+  { label: "Type of Article (Original Research / Review etc.)", Icon: LayerIcon },
+  { label: "Domain Type (Multidisciplinary / Core etc.)",        Icon: BuildingIcon },
+  { label: "Author Type & Additional Author Details",            Icon: UsersIcon },
+  { label: "Journal / Venue Name, Publisher & Date",             Icon: BookOpenIcon },
+  { label: "Type of Access + Open Access Fee (if applicable)",   Icon: LockIcon },
+  { label: "Indexing (Scopus / SCI / UGC etc.)",                 Icon: TagIcon },
+  { label: "Quartile (Q1–Q4) — Journal, Book, Book Chapter",    Icon: BarChartIcon },
+  { label: "DOI (Digital Object Identifier)",                    Icon: HashIcon },
+  { label: "PDF of Paper (max 2 MB, PDF only)",                  Icon: UploadIcon },
+  { label: "Publishing Date",                                    Icon: CalendarIcon },
 ];
 
 const HOW_IT_WORKS = [
   "Keep your published paper PDF (max 2 MB) and all co-author details ready before starting.",
   "Navigate to the Apply tab and fill in all personal and paper details.",
-  "Upload the PDF, optionally add DOI and preprint status, then submit.",
-  "Your submission is saved instantly — search and verify it under the Search tab.",
+  "Upload the PDF, add DOI, and submit.",
+  "Download your submission report PDF immediately after submission.",
+  "Search and verify your entry under the Search tab.",
 ];
 
 /* ── Animated Counter ── */
@@ -88,7 +86,6 @@ function StatCard({ target, suffix, label, colorClass, delay }) {
   );
 }
 
-/* Live total papers card — fetches from backend, re-fetches every 30s */
 function LivePapersCard({ delay }) {
   const [count, setCount] = useState(null);
   const ref = useRef(null);
@@ -101,21 +98,14 @@ function LivePapersCard({ delay }) {
     const step = (ts) => {
       if (!start) start = ts;
       const p = Math.min((ts - start) / 1000, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setCount(Math.floor(prev + (target - prev) * eased));
-      if (p < 1) animRef.current = requestAnimationFrame(step);
-      else setCount(target);
+      setCount(Math.floor(prev + (target - prev) * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) animRef.current = requestAnimationFrame(step); else setCount(target);
     };
     animRef.current = requestAnimationFrame(step);
   };
 
   const fetchCount = async () => {
-    try {
-      const n = await fetchPaperCount();
-      animateTo(n);
-    } catch {
-      /* silently keep last count */
-    }
+    try { const n = await fetchPaperCount(); animateTo(n); } catch {}
   };
 
   useEffect(() => {
@@ -126,9 +116,7 @@ function LivePapersCard({ delay }) {
 
   return (
     <div className="stat-card animate-in" ref={ref} style={{ animationDelay: delay }}>
-      <div className="stat-value orange">
-        {count === null ? "—" : count}
-      </div>
+      <div className="stat-value orange">{count === null ? "—" : count}</div>
       <div className="stat-label">Papers Registered</div>
     </div>
   );
@@ -138,39 +126,30 @@ export default function Home({ setPage }) {
   return (
     <div className="home-page">
 
-      {/* ── Hero ── */}
+      {/* Hero */}
       <section className="hero-section" aria-labelledby="hero-heading">
         <div className="hero-badge"><AwardIcon /> Institutional Research Portal</div>
         <h1 className="hero-title" id="hero-heading">
           One Paper. <span className="accent">One Claim.</span><br />Zero Duplicates.
         </h1>
         <p className="hero-subtitle">
-          A centralised portal to register, track, and verify faculty research publications across
-          JSS Science and Technology University.
+          A centralised portal to register, track, and verify faculty research publications
+          across JSS Science and Technology University.
         </p>
-
-        {/* Time estimate */}
         <div className="hero-time-note">
           <ClockIcon />
-          <span>
-            If all required details are ready, this application takes <strong>5 – 8 minutes</strong> to complete.
-          </span>
+          <span>If all required details are ready, this application takes <strong>5–8 minutes</strong> to complete.</span>
         </div>
-
         <div className="hero-actions">
-          <button className="btn-primary" onClick={() => setPage("apply")} aria-label="Submit a research paper">
-            Submit a Paper
-          </button>
-          <button className="btn-secondary" onClick={() => setPage("search")} aria-label="Search existing papers">
-            <SearchIcon /> Search Records
-          </button>
+          <button className="btn-primary" onClick={() => setPage("apply")}>Submit a Paper</button>
+          <button className="btn-secondary" onClick={() => setPage("search")}><SearchIcon /> Search Records</button>
         </div>
       </section>
 
-      {/* ── Info Cards ── */}
+      {/* Info Cards */}
       <div className="info-grid">
         <GlassCard title="Required Fields" className="section-navy">
-          <ul className="fields-list" aria-label="Required fields">
+          <ul className="fields-list">
             {REQUIRED_FIELDS.map(({ label, Icon }) => (
               <li key={label}>
                 <span className="field-icon" aria-hidden="true"><Icon /></span>
@@ -178,42 +157,18 @@ export default function Home({ setPage }) {
               </li>
             ))}
           </ul>
-          <div style={{ marginTop: "1rem", paddingTop: "0.8rem", borderTop: "1px solid var(--border)" }}>
-            <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.45rem" }}>
-              Optional Fields
-            </p>
-            <ul className="fields-list">
-              {OPTIONAL_FIELDS.map((label) => (
-                <li key={label}>
-                  <span className="field-icon" aria-hidden="true" style={{ background: "rgba(245,110,0,0.1)" }}>
-                    <TagIcon />
-                  </span>
-                  <span style={{ color: "var(--text-muted)" }}>{label}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
         </GlassCard>
 
         <GlassCard title="How It Works" className="section-orange">
-          <ol className="step-list" aria-label="Steps to submit">
-            {HOW_IT_WORKS.map((s) => <li key={s}>{s}</li>)}
+          <ol className="step-list">
+            {HOW_IT_WORKS.map(s => <li key={s}>{s}</li>)}
           </ol>
-
-          {/* Quick tips */}
-          <div style={{ marginTop: "1.2rem", padding: "1rem", background: "rgba(245,110,0,0.07)", borderRadius: "var(--radius-sm)", border: "1px solid rgba(245,110,0,0.12)" }}>
-            <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--orange)", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: "0.45rem" }}>
-              Before You Begin
-            </p>
-            <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              {[
-                "Keep the paper PDF ready (max 2 MB, PDF only)",
-                "Have co-author name, org, and email handy",
-                "Note down the DOI if available",
-              ].map((tip) => (
-                <li key={tip} style={{ fontSize: "0.83rem", color: "var(--text-secondary)", display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
-                  <span style={{ color: "var(--orange)", fontWeight: 700, marginTop: "1px", flexShrink: 0 }}>·</span>
-                  {tip}
+          <div style={{ marginTop:"1.2rem", padding:"1rem", background:"rgba(245,110,0,0.07)", borderRadius:"var(--radius-sm)", border:"1px solid rgba(245,110,0,0.12)" }}>
+            <p style={{ fontSize:"0.72rem", fontWeight:700, color:"var(--orange)", textTransform:"uppercase", letterSpacing:"0.09em", marginBottom:"0.45rem" }}>Before You Begin</p>
+            <ul style={{ listStyle:"none", display:"flex", flexDirection:"column", gap:"0.35rem" }}>
+              {["Keep the paper PDF ready (max 2 MB, PDF only)","Have co-author name, org, and email handy","Note down the DOI (mandatory)"].map(tip => (
+                <li key={tip} style={{ fontSize:"0.83rem", color:"var(--text-secondary)", display:"flex", alignItems:"flex-start", gap:"0.5rem" }}>
+                  <span style={{ color:"var(--orange)", fontWeight:700, marginTop:"1px", flexShrink:0 }}>·</span>{tip}
                 </li>
               ))}
             </ul>
@@ -221,38 +176,78 @@ export default function Home({ setPage }) {
         </GlassCard>
       </div>
 
-      {/* ── Live Counter Stats ── */}
-      <section className="stats-section" aria-label="Portal statistics">
+      {/* Live Counter */}
+      <section className="stats-section">
         <p className="stats-heading">Portal at a Glance</p>
         <div className="stats-grid">
-          <StatCard target={1}   suffix=""       label="Paper Per Author"   colorClass="blue"   delay="0s" />
+          <StatCard target={1}   suffix=""       label="Paper Per Author"  colorClass="blue"   delay="0s" />
           <LivePapersCard delay="0.1s" />
-          <StatCard target={4}   suffix=" Tiers" label="Q1 – Q4 Tracked"    colorClass="blue"   delay="0.2s" />
+          <StatCard target={4}   suffix=" Tiers" label="Q1 – Q4 Tracked"   colorClass="blue"   delay="0.2s" />
         </div>
       </section>
 
-      {/* ── Contact Us ── */}
+      {/* ── Correction / Wrong Entry Note ── */}
+      <section className="contact-section" style={{ marginTop:"2rem" }}>
+        <div style={{
+          background:"linear-gradient(135deg, rgba(245,110,0,0.08), rgba(245,110,0,0.04))",
+          border:"1.5px solid rgba(245,110,0,0.25)",
+          borderRadius:"var(--radius)",
+          padding:"1.5rem 1.8rem",
+          backdropFilter:"blur(16px)",
+          WebkitBackdropFilter:"blur(16px)",
+          boxShadow:"var(--glass-shadow)",
+        }}>
+          <div style={{ display:"flex", alignItems:"flex-start", gap:"1rem" }}>
+            <span style={{ width:38, height:38, borderRadius:10, background:"rgba(245,110,0,0.15)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <AlertIcon />
+            </span>
+            <div>
+              <p style={{ fontSize:"0.72rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", color:"var(--orange)", marginBottom:"0.3rem" }}>
+                Important — Corrections &amp; Wrong Entries
+              </p>
+              <p style={{ fontSize:"0.88rem", color:"var(--text-secondary)", lineHeight:1.7, margin:0 }}>
+                If you have submitted incorrect details or uploaded the wrong file, <strong style={{ color:"var(--text-primary)" }}>you cannot edit your submission directly</strong>.
+                Please contact the Office of Dean Research through the given contact details to know the correction process and get your entry amended or withdrawn.
+              </p>
+              <div style={{ marginTop:"0.85rem", display:"flex", gap:"1.2rem", flexWrap:"wrap" }}>
+                <span style={{ display:"flex", alignItems:"center", gap:"0.45rem", fontSize:"0.83rem", color:"var(--text-secondary)" }}>
+                  <span style={{ width:28, height:28, borderRadius:8, background:"var(--navy-pale)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <MailIcon />
+                  </span>
+                  office.deanres@jssstuniv.in
+                </span>
+                <span style={{ display:"flex", alignItems:"center", gap:"0.45rem", fontSize:"0.83rem", color:"var(--text-secondary)" }}>
+                  <span style={{ width:28, height:28, borderRadius:8, background:"var(--navy-pale)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <PhoneIcon />
+                  </span>
+                  0821 241 1305
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Us */}
       <section className="contact-section" aria-label="Contact information">
         <GlassCard>
           <div className="contact-inner">
             <div>
               <p className="contact-label">Get in Touch</p>
               <h2 className="contact-heading">Contact Us</h2>
-              <p className="contact-desc">
-                For assistance with paper submissions or portal access, reach out to the Research Cell.
-              </p>
+              <p className="contact-desc">For assistance with paper submissions or portal access, reach out to the Office of Dean Research.</p>
             </div>
             <div className="contact-items">
               <div className="contact-item">
-                <span className="contact-icon" aria-hidden="true"><MailIcon /></span>
-                research@jssstu.edu.in
+                <span className="contact-icon"><MailIcon /></span>
+                office.deanres@jssstuniv.in
               </div>
               <div className="contact-item">
-                <span className="contact-icon" aria-hidden="true"><PhoneIcon /></span>
-                +91 821 2548 400
+                <span className="contact-icon"><PhoneIcon /></span>
+                0821 241 1305
               </div>
               <div className="contact-item">
-                <span className="contact-icon" aria-hidden="true"><MapPinIcon /></span>
+                <span className="contact-icon"><MapPinIcon /></span>
                 Mysuru, Karnataka — 570 006
               </div>
             </div>

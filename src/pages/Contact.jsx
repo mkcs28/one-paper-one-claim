@@ -22,10 +22,10 @@ const SUBJECT_OPTS = [
 ];
 
 const INFO_CARDS = [
-  { Icon: MailIcon,  label: "Email",         value: "research@jssstu.edu.in" },
-  { Icon: PhoneIcon, label: "Phone",          value: "+91 821 2548 400" },
-  { Icon: MapIcon,   label: "Address",        value: "Mysuru, Karnataka — 570 006" },
-  { Icon: ClockIcon, label: "Working Hours",  value: "Mon – Fri, 9:00 AM – 5:00 PM" },
+  { Icon: MailIcon,  label: "Email",        value: "office.deanres@jssstuniv.in" },
+  { Icon: PhoneIcon, label: "Phone",        value: "0821 241 1305" },
+  { Icon: MapIcon,   label: "Address",      value: "Mysuru, Karnataka — 570 006" },
+  { Icon: ClockIcon, label: "Working Hours", value: "Mon – Fri, 9:00 AM – 5:00 PM" },
 ];
 
 const INIT = { name: "", email: "", phone: "", subject: "", message: "" };
