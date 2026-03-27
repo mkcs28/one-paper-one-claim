@@ -142,6 +142,7 @@ export async function sendPaperNotifyDean({ ackNumber, data, submittedAt, pdfBuf
       <div class="field-row"><span class="field-label">Employee ID</span><span class="field-value">${data.empId}</span></div>
       <div class="field-row"><span class="field-label">Designation</span><span class="field-value">${data.designation}</span></div>
       <div class="field-row"><span class="field-label">Department</span><span class="field-value">${data.department}</span></div>
+      <div class="field-row"><span class="field-label">Organisation</span><span class="field-value">${data.orgSelect === "Others" ? (data.organization || "—") : (data.orgSelect || "JSS Science and Technology University, Mysuru")}</span></div>
       <div class="field-row"><span class="field-label">Email</span><span class="field-value">${data.email}</span></div>
       <div class="field-row"><span class="field-label">Phone</span><span class="field-value">${data.phone}</span></div>
       <div class="section-head" style="margin-top:10px;">Paper</div>
@@ -166,7 +167,7 @@ export async function sendPaperNotifyDean({ ackNumber, data, submittedAt, pdfBuf
         const roleLabel   = a.authorRole ? ` <span style="color:#f56e00;font-size:11px;">[${a.authorRole}]</span>` : "";
         const collabLabel = a.collabType ? ` <span style="color:#1e56c8;font-size:11px;">${a.collabType}</span>` : "";
         const countryFlag = a.country && a.country !== "India" ? ` 🌍 <strong style="color:#1e56c8;">${a.country}</strong>` : (a.country ? ` ${a.country}` : "");
-        const org = a.organization || "JSS Science and Technology University";
+        const org = a.orgSelect === "Others" ? (a.organization || "—") : (a.orgSelect || "JSS Science and Technology University, Mysuru");
         return `<div class="field-row"><span class="field-label">Author ${i+2}${roleLabel}</span><span class="field-value">${a.prefix||""} ${a.name} — ${org}${collabLabel}${countryFlag}</span></div>`;
       }).join("")}
       ` : ""}

@@ -14,11 +14,15 @@ function calculateMarks(data) {
   const authorType    = (data.authorType    || "");
   const coAuthors     = data.authors        || [];
 
+  const HOST_FULL = "JSS Science and Technology University, Mysuru";
+
+  const submitterIsJss = !data.orgSelect || data.orgSelect === HOST_FULL;
+
   const jssCoAuthors    = coAuthors.filter(a => {
-    const org = (a.organization || "").trim().toLowerCase();
-    return org === "" || org.includes("jss science and technology") || org.includes("jssstu");
+    const sel = (a.orgSelect || "").trim();
+    return sel === "" || sel === HOST_FULL;
   });
-  const totalJssAuthors = 1 + jssCoAuthors.length;
+  const totalJssAuthors = (submitterIsJss ? 1 : 0) + jssCoAuthors.length;
   const hasIntlCollab   = coAuthors.some(a => {
     const collabType = (a.collabType || "").toLowerCase();
     const country    = (a.country   || "").trim().toLowerCase();
@@ -162,12 +166,13 @@ export async function buildMergedPdf({ ackNumber, data, submittedAt }, uploadedP
   };
 
   sectionHead("Submitter Information");
-  row("Name",        `${data.prefix||""} ${data.name}`);
-  row("Employee ID", data.empId);
-  row("Designation", data.designation);
-  row("Department",  data.department);
-  row("Email",       data.email);
-  row("Phone",       data.phone);
+  row("Name",         `${data.prefix||""} ${data.name}`);
+  row("Employee ID",  data.empId);
+  row("Designation",  data.designation);
+  row("Department",   data.department);
+  row("Organisation", data.orgSelect === "Others" ? (data.organization || "—") : (data.orgSelect || HOST_FULL));
+  row("Email",        data.email);
+  row("Phone",        data.phone);
 
   curY-=6; sectionHead("Paper Details");
   row("Title",           data.paperTitle);
@@ -191,7 +196,8 @@ export async function buildMergedPdf({ ackNumber, data, submittedAt }, uploadedP
       const roleLabel   = a.authorRole ? ` (${a.authorRole})` : "";
       const collabLabel = a.collabType ? ` [${a.collabType}]` : "";
       const countryLabel= a.country ? ` · ${a.country}` : "";
-      const orgLabel    = a.organization ? ` — ${a.organization}` : " — JSS Science and Technology University";
+      const resolvedOrg  = a.orgSelect === "Others" ? (a.organization || "—") : (a.orgSelect || HOST_FULL);
+      const orgLabel     = ` — ${resolvedOrg}`;
       row(`Author ${i+2}${roleLabel}`, `${a.prefix||""} ${a.name}${orgLabel}${collabLabel}${countryLabel}`);
     });
   }
