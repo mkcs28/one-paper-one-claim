@@ -1195,3 +1195,34 @@ body {
   .result-expanded-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr; }
 }
+
+/* ===== MINIMAL BUTTON FIX (DO NOT TOUCH ANYTHING ELSE) ===== */
+
+/* Fix text centering only */
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Fix parent stretching (MAIN ISSUE) */
+.hero-actions {
+  display: flex;
+  justify-content: center;  /* prevents stretching */
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+/* Mobile full width (keep your design) */
+@media (max-width: 620px) {
+  .hero-actions {
+    align-items: stretch;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+  }
+}
