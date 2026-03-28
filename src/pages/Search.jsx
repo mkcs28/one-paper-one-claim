@@ -321,17 +321,39 @@ function PersonSearchModal({ onClose }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
   const [searched, setSearched] = useState(false);
+  const [allPapers, setAllPapers] = useState([]);
+  const [loadingAll, setLoadingAll] = useState(true);
+
+  const DEPARTMENTS_SEARCH = ["Computer Science","Information Technology","Electronics & Communication","Electrical Engineering","Mechanical Engineering","Civil Engineering","Management Studies","Basic Sciences","Other"];
+
+  // Fetch all papers once to build name list
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await fetchPapers({});
+        setAllPapers(data || []);
+      } catch { /* silent */ }
+      finally { setLoadingAll(false); }
+    })();
+  }, []);
+
+  const uniqueNames = useMemo(() => {
+    const names = [...new Set(allPapers.map(p => p.name).filter(Boolean))].sort();
+    return names;
+  }, [allPapers]);
 
   const handleSearch = async () => {
-    if (!name.trim() && !dept.trim()) { setError("Please enter a name or department."); return; }
+    if (!name && !dept) { setError("Please select a name or department."); return; }
     setLoading(true); setError(""); setPapers([]); setSearched(false);
     try {
-      const data = await fetchPapers({ q: name.trim(), dept: dept.trim() });
-      // Filter by name if provided
-      const filtered = name.trim()
-        ? data.filter(p => p.name?.toLowerCase().includes(name.trim().toLowerCase()))
+      const data = await fetchPapers({ q: name, dept });
+      const filtered = name
+        ? data.filter(p => p.name?.toLowerCase() === name.toLowerCase())
         : data;
-      setPapers(filtered);
+      const deptFiltered = dept
+        ? filtered.filter(p => p.department?.toLowerCase().includes(dept.toLowerCase()))
+        : filtered;
+      setPapers(deptFiltered);
       setSearched(true);
     } catch { setError("Search failed. Please try again."); }
     finally { setLoading(false); }
@@ -341,20 +363,26 @@ function PersonSearchModal({ onClose }) {
     <div className="modal-overlay" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-box" style={{ maxWidth:620, textAlign:"left", maxHeight:"90vh", overflowY:"auto", padding:"1.5rem" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.1rem" }}>
-          <h2 className="modal-title" style={{ margin:0, fontSize:"1.05rem" }}>Person Lookup — Marks & Papers</h2>
+          <h2 className="modal-title" style={{ margin:0, fontSize:"1.05rem" }}>Person Lookup — Marks &amp; Papers</h2>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--text-muted)", fontSize:"1.2rem" }}>✕</button>
         </div>
 
         <div style={{ display:"flex", gap:"0.6rem", marginBottom:"0.5rem", flexWrap:"wrap" }}>
-          <input type="text" className="form-input" style={{ flex:2, minWidth:140 }}
-            placeholder="Faculty / Author name"
-            value={name} onChange={e => { setName(e.target.value); setError(""); }}
-            onKeyDown={e => e.key==="Enter" && handleSearch()} autoFocus />
-          <input type="text" className="form-input" style={{ flex:1, minWidth:120 }}
-            placeholder="Department (optional)"
-            value={dept} onChange={e => { setDept(e.target.value); setError(""); }}
-            onKeyDown={e => e.key==="Enter" && handleSearch()} />
-          <button className="btn-primary" onClick={handleSearch} disabled={loading}
+          <div style={{ flex:2, minWidth:140 }}>
+            <select className="form-select" value={name} onChange={e => { setName(e.target.value); setError(""); }}
+              disabled={loadingAll} style={{ width:"100%" }}>
+              <option value="">{loadingAll ? "Loading names…" : "Select Faculty / Author Name"}</option>
+              {uniqueNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div style={{ flex:1, minWidth:120 }}>
+            <select className="form-select" value={dept} onChange={e => { setDept(e.target.value); setError(""); }}
+              style={{ width:"100%" }}>
+              <option value="">All Departments</option>
+              {DEPARTMENTS_SEARCH.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <button className="btn-primary" onClick={handleSearch} disabled={loading || loadingAll}
             style={{ padding:"0.7rem 1.2rem", whiteSpace:"nowrap", flexShrink:0 }}>
             {loading ? "…" : "Search"}
           </button>
@@ -443,7 +471,6 @@ function DoiLookupModal({ onClose }) {
 function ResultCard({ paper, index }) {
   const [expanded, setExpanded] = useState(false);
   const subDate = paper.createdAt ? new Date(paper.createdAt).toLocaleDateString("en-IN",{dateStyle:"medium"}) : "—";
-  const marks = calculateMarks(paper);
 
   return (
     <GlassCard className="result-card animate-in" style={{ animationDelay:`${Math.min(index%6,5)*0.06}s` }}>
@@ -459,12 +486,6 @@ function ResultCard({ paper, index }) {
         <li className="result-meta-item"><span className="result-meta-label">Indexing</span><span className="result-meta-value"><span className="indexing-tag">{paper.indexing}</span></span></li>
         <li className="result-meta-item"><span className="result-meta-label">Published</span><span className="result-meta-value">{paper.publishingDate||"—"}</span></li>
         <li className="result-meta-item"><span className="result-meta-label">Submitted</span><span className="result-meta-value">{subDate}</span></li>
-        <li className="result-meta-item">
-          <span className="result-meta-label">Marks</span>
-          <span className="result-meta-value" style={{color:marks.points>0?"var(--green)":"var(--text-muted)",fontWeight:700}}>
-            {marks.points.toFixed(2)} pts
-          </span>
-        </li>
       </ul>
 
       <button className="result-expand-btn" onClick={() => setExpanded(v=>!v)} aria-expanded={expanded}>
@@ -507,7 +528,6 @@ function SkeletonCard() {
 }
 
 export default function Search() {
-  const [draftQuery, setDraftQuery]   = useState("");
   const [query, setQuery]             = useState("");
   const [type, setType]               = useState("All");
   const [dept, setDept]               = useState("All");
@@ -518,7 +538,6 @@ export default function Search() {
   const [error, setError]             = useState("");
   const [showPersonModal, setShowPersonModal] = useState(false);
   const [showDoiModal, setShowDoiModal]       = useState(false);
-  const debounceRef                   = useRef(null);
 
   const loadLatest = useCallback(async () => {
     setLoading(true); setError("");
@@ -540,17 +559,6 @@ export default function Search() {
 
   useEffect(() => { loadLatest(); }, [loadLatest]);
 
-  const handleQueryChange = e => {
-    const val = e.target.value;
-    setDraftQuery(val);
-    clearTimeout(debounceRef.current);
-    if (!val.trim()) {
-      debounceRef.current = setTimeout(() => { setQuery(""); loadLatest(); }, 400);
-    } else {
-      debounceRef.current = setTimeout(() => { setQuery(val); loadAll(val, type, dept, sort); }, 400);
-    }
-  };
-
   const handleTypeChange = t => { setType(t); loadAll(query, t, dept, sort); };
   const handleDeptChange = d => { setDept(d); loadAll(query, type, d, sort); };
   const handleSortChange = s => { setSort(s); loadAll(query, type, dept, s); };
@@ -569,28 +577,22 @@ export default function Search() {
         <h1 className="page-title">Search Publications</h1>
         <p className="page-subtitle">
           {isDefault
-            ? "Showing latest 6 submissions. Search to find specific papers."
-            : "Live database search — results update as you type."}
+            ? "Showing latest 6 submissions. Use Person Lookup or DOI Lookup to find specific papers."
+            : "Filtered results from the live database."}
         </p>
       </div>
 
-      {/* Search + Lookup buttons */}
+      {/* Lookup buttons only */}
       <div style={{ display:"flex", gap:"0.75rem", marginBottom:"1.4rem", flexWrap:"wrap" }}>
-        <div style={{ position:"relative", flex:1, minWidth:200 }}>
-          <span className="search-icon"><SearchIcon /></span>
-          <input type="search" className="form-input search-input"
-            placeholder="Search by title, author name, DOI, department, journal…"
-            value={draftQuery} onChange={handleQueryChange} aria-label="Search publications" />
-        </div>
         {/* Person Marks Lookup */}
         <button className="btn-primary" onClick={() => setShowPersonModal(true)}
-          style={{ display:"flex", alignItems:"center", gap:"0.45rem", padding:"0 1.1rem", height:50, borderRadius:"var(--radius-pill)", flexShrink:0, whiteSpace:"nowrap" }}>
+          style={{ display:"flex", alignItems:"center", gap:"0.45rem", padding:"0 1.4rem", height:50, borderRadius:"var(--radius-pill)", flexShrink:0, whiteSpace:"nowrap" }}>
           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16,stroke:"currentColor"}}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <span>Person Lookup</span>
         </button>
         {/* DOI Lookup */}
         <button className="btn-secondary" onClick={() => setShowDoiModal(true)}
-          style={{ display:"flex", alignItems:"center", gap:"0.45rem", padding:"0 1.1rem", height:50, borderRadius:"var(--radius-pill)", flexShrink:0, whiteSpace:"nowrap" }}>
+          style={{ display:"flex", alignItems:"center", gap:"0.45rem", padding:"0 1.4rem", height:50, borderRadius:"var(--radius-pill)", flexShrink:0, whiteSpace:"nowrap" }}>
           <DoiIcon /> <span className="doi-btn-text">DOI Lookup</span>
         </button>
       </div>

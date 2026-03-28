@@ -43,10 +43,10 @@ const COUNTRIES = [
   "Vietnam","Yemen","Zambia","Zimbabwe"
 ];
 
-const EMPTY_AUTHOR = { name:"", department:"", orgSelect:"", organization:"", email:"", authorRole:"", collabType:"", country:"India" };
+const EMPTY_AUTHOR = { name:"", department:"", orgSelect:"", organization:"", additionalAffiliations:[], email:"", authorRole:"", collabType:"", country:"India" };
 
 const INIT = {
-  name:"", empId:"", designation:"", department:"",
+  name:"", designation:"", department:"",
   orgSelect:"", organization:"",
   email:"",
   paperTitle:"", paperType:"", authorType:"",
@@ -61,7 +61,6 @@ const INIT = {
 function validate(form) {
   const e = {};
   if (!form.name.trim())        e.name           = "Name required.";
-  if (!form.empId.trim())       e.empId          = "Employee ID required.";
   if (!form.designation)        e.designation    = "Designation required.";
   if (!form.department)         e.department     = "Department required.";
   if (!form.orgSelect)          e.orgSelect      = "Organisation required.";
@@ -275,7 +274,6 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
 
   sectionHead("Submitter Information");
   row("Name",         formData.name);
-  row("Employee ID",  formData.empId);
   row("Designation",  formData.designation);
   row("Department",   formData.department);
   row("Organisation", formData.orgSelect === "Others" ? (formData.organization || "—") : (formData.orgSelect || HOST_UNIVERSITY_FULL));
@@ -436,7 +434,7 @@ export default function Apply() {
     setFileError("");
     if (!file) return;
     if (file.type !== "application/pdf") { setFileError("Only PDF files are allowed."); return; }
-    if (file.size > 2*1024*1024) { setFileError("File must not exceed 2 MB."); return; }
+    if (file.size > 10*1024*1024) { setFileError("File must not exceed 10 MB."); return; }
     setForm(p => ({ ...p, paperFile:file }));
     setFileLabel(file.name);
     if (errors.paperFile) setErrors(p => ({ ...p, paperFile:"" }));
@@ -556,14 +554,17 @@ export default function Apply() {
 
                   {/* Full Name (no prefix) */}
                   <div className="form-group">
-                    <label className="form-label">Full Name</label>
+                    <label className="form-label">Full Name <span className="required">*</span></label>
                     <input type="text" className="form-input" placeholder="Full name" value={author.name} onChange={e=>updateAuthor(idx,"name",e.target.value)}/>
                   </div>
 
                   <div className="form-grid">
                     <div className="form-group">
-                      <label className="form-label">Department</label>
-                      <input type="text" className="form-input" placeholder="Department" value={author.department} onChange={e=>updateAuthor(idx,"department",e.target.value)}/>
+                      <label className="form-label">Department <span className="required">*</span></label>
+                      <select className="form-select" value={author.department} onChange={e=>updateAuthor(idx,"department",e.target.value)}>
+                        <option value="">Select Department</option>
+                        {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
+                      </select>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Organisation <span className="required">*</span></label>
@@ -589,6 +590,39 @@ export default function Apply() {
                       <input type="text" className="form-input" placeholder="Full name of university / institution" value={author.organization} onChange={e=>updateAuthor(idx,"organization",e.target.value)}/>
                     </div>
                   )}
+
+                  {/* Optional additional affiliations */}
+                  {(author.additionalAffiliations||[]).map((aff, affIdx) => (
+                    <div key={affIdx} style={{display:"flex",gap:"0.5rem",alignItems:"center",marginBottom:"0.5rem"}}>
+                      <div style={{flex:1,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem"}}>
+                        <input type="text" className="form-input" placeholder="Additional Department"
+                          value={aff.department||""} style={{fontSize:"0.83rem"}}
+                          onChange={e=>{
+                            const updated=[...(author.additionalAffiliations||[])];
+                            updated[affIdx]={...updated[affIdx],department:e.target.value};
+                            updateAuthor(idx,"additionalAffiliations",updated);
+                          }}/>
+                        <input type="text" className="form-input" placeholder="Additional Institution"
+                          value={aff.institution||""} style={{fontSize:"0.83rem"}}
+                          onChange={e=>{
+                            const updated=[...(author.additionalAffiliations||[])];
+                            updated[affIdx]={...updated[affIdx],institution:e.target.value};
+                            updateAuthor(idx,"additionalAffiliations",updated);
+                          }}/>
+                      </div>
+                      <button type="button" className="btn-remove" style={{flexShrink:0}}
+                        onClick={()=>{
+                          const updated=(author.additionalAffiliations||[]).filter((_,i)=>i!==affIdx);
+                          updateAuthor(idx,"additionalAffiliations",updated);
+                        }}><XIcon/></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={()=>{
+                    const updated=[...(author.additionalAffiliations||[]),{department:"",institution:""}];
+                    updateAuthor(idx,"additionalAffiliations",updated);
+                  }} style={{display:"flex",alignItems:"center",gap:"0.35rem",background:"none",border:"1.5px dashed var(--border)",borderRadius:"var(--radius-sm)",padding:"0.45rem 0.9rem",fontSize:"0.78rem",color:"var(--text-secondary)",fontWeight:600,cursor:"pointer",marginBottom:"0.75rem",width:"auto"}}>
+                    <PlusIcon/> Add another affiliation
+                  </button>
 
                   {/* Country only shown (hidden) for International — used for scoring in backend */}
                   {author.collabType === "International" && (
@@ -630,27 +664,24 @@ export default function Apply() {
             <Field id="name" label="Full Name" required error={errors.name}>
               <input id="name" name="name" type="text" className="form-input" placeholder="Full legal name" value={form.name} onChange={handleChange}/>
             </Field>
-            <Field id="empId" label="Employee ID" required error={errors.empId}>
-              <input id="empId" name="empId" type="text" className="form-input" placeholder="EMP / Faculty ID" value={form.empId} onChange={handleChange}/>
-            </Field>
-          </div>
-          <div className="form-grid">
             <Field id="department" label="Department" required error={errors.department}>
               <select id="department" name="department" className="form-select" value={form.department} onChange={handleChange}>
                 <option value="">Select</option>
                 {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
               </select>
             </Field>
+          </div>
+          <div className="form-grid">
             <Field id="designation" label="Designation" required error={errors.designation}>
               <select id="designation" name="designation" className="form-select" value={form.designation} onChange={handleChange}>
                 <option value="">Select</option>
                 {DESIGNATIONS.map(d=><option key={d} value={d}>{d}</option>)}
               </select>
             </Field>
+            <Field id="email" label="Email Address" required error={errors.email}>
+              <input id="email" name="email" type="email" className="form-input" placeholder="name@jssstuniv.in" value={form.email} onChange={handleChange}/>
+            </Field>
           </div>
-          <Field id="email" label="Email Address" required error={errors.email}>
-            <input id="email" name="email" type="email" className="form-input" placeholder="name@jssstuniv.in" value={form.email} onChange={handleChange}/>
-          </Field>
           <div className={form.orgSelect === "Others" ? "form-grid" : ""}>
             <Field id="orgSelect" label="Organisation" required error={errors.orgSelect}>
               <select id="orgSelect" name="orgSelect" className="form-select" value={form.orgSelect} onChange={e => {
@@ -756,7 +787,7 @@ export default function Apply() {
                 <input type="file" accept=".pdf,application/pdf" onChange={handleFile} aria-label="Upload PDF"/>
                 <div className="file-upload-icon"><UploadIcon/></div>
                 <div className="file-upload-text">Click to browse or drag and drop</div>
-                <div className="file-upload-hint">PDF only — maximum 2 MB</div>
+                <div className="file-upload-hint">PDF only — maximum 10 MB</div>
               </div>
             )}
             {(fileError||errors.paperFile) && <span className="file-upload-error" role="alert">{fileError||errors.paperFile}</span>}
