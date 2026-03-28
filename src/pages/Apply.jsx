@@ -666,9 +666,7 @@ export default function Apply() {
                   <button type="button" onClick={()=>{
                     const updated=[...(author.additionalAffiliations||[]),{department:"",institution:""}];
                     updateAuthor(idx,"additionalAffiliations",updated);
-                  }} style={{display:"inline-flex",alignItems:"center",gap:"0.3rem",background:"rgba(22,48,100,0.06)",border:"1.5px solid rgba(22,48,100,0.18)",borderRadius:"var(--radius-pill)",padding:"0.32rem 0.85rem",fontSize:"0.75rem",color:"var(--navy-light)",fontWeight:600,cursor:"pointer",marginBottom:"0.75rem",width:"auto",transition:"background 0.15s,border-color 0.15s"}}
-                    onMouseEnter={e=>{e.currentTarget.style.background="rgba(22,48,100,0.12)";e.currentTarget.style.borderColor="rgba(22,48,100,0.35)";}}
-                    onMouseLeave={e=>{e.currentTarget.style.background="rgba(22,48,100,0.06)";e.currentTarget.style.borderColor="rgba(22,48,100,0.18)";}}>
+                  }} className="btn-add-author" style={{marginBottom:"0.75rem"}}>
                     <PlusIcon/> Add another affiliation
                   </button>
 
