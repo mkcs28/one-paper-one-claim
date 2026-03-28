@@ -248,7 +248,7 @@ export default function Home({ setPage }) {
               </div>
               <div className="contact-item">
                 <span className="contact-icon"><MapPinIcon /></span>
-                JSS Science and Technology University, Mysuru, Karnataka — 570 006
+                Mysuru, Karnataka — 570 006
               </div>
             </div>
           </div>

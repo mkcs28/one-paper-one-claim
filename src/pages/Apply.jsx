@@ -3,27 +3,24 @@ import GlassCard from "../components/GlassCard.jsx";
 import { submitPaper } from "../api.js";
 
 /* ── Constants ── */
-const PREFIXES           = ["Mr.", "Ms.", "Mrs.", "Dr.", "Prof."];
 const PAPER_TYPES        = ["Journal", "Conference", "Book Chapter", "Book"];
 const AUTHOR_TYPES       = ["First Author", "Co-Author", "Corresponding Author"];
 const COAUTHOR_TYPES     = ["First Author", "Co-Author", "Corresponding Author"];
-const COLLAB_TYPES       = ["National", "International"];
+const COLLAB_TYPES       = ["In-house", "National", "International"];
 const DEPARTMENTS        = ["Computer Science","Information Technology","Electronics & Communication","Electrical Engineering","Mechanical Engineering","Civil Engineering","Management Studies","Basic Sciences","Other"];
 const DESIGNATIONS       = ["Professor","Associate Professor","Assistant Professor","Lecturer","Research Scholar","Other"];
 const INDEXING_OPTS      = ["Scopus","SCI","SCIE","ESCI","UGC Care","Web of Science","PubMed","IEEE Xplore","Other"];
 const QUARTILES          = ["Q1","Q2","Q3","Q4"];
 const QUARTILE_TYPES     = ["Journal","Book Chapter","Book"];
-const ACCESS_TYPES       = ["Open Access","Restricted Access","Hybrid"];
-const ACCESS_PAPER_TYPES = ["Journal","Book Chapter","Book"];
 const BOOK_TYPES         = ["Book Chapter","Book"];
 const PUBLISHER_TYPES    = ["National","International"];
 const MAX_AUTHORS        = 8;
-const DOMAIN_TYPES       = ["Multidisciplinary","Interdisciplinary","Core / Specific Discipline","Engineering & Technology","Medical & Life Sciences","Social Sciences & Humanities","Natural Sciences","Management & Commerce","Other"];
-const ARTICLE_TYPES      = ["Original Research","Review Article","Survey","Case Study","Technical Note","Short Communication","Letter to Editor","Conference Paper","Book Chapter","Systematic Review","Meta-Analysis","Other"];
 
-const HOST_UNIVERSITY    = "JSS Science and Technology University";
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const YEARS  = Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i);
+
 const HOST_UNIVERSITY_FULL = "JSS Science and Technology University, Mysuru";
-const ORG_OPTIONS        = [HOST_UNIVERSITY_FULL, "Others"];
+const ORG_OPTIONS          = [HOST_UNIVERSITY_FULL, "Others"];
 
 const COUNTRIES = [
   "Afghanistan","Albania","Algeria","Andorra","Angola","Argentina","Armenia","Australia","Austria","Azerbaijan",
@@ -46,33 +43,29 @@ const COUNTRIES = [
   "Vietnam","Yemen","Zambia","Zimbabwe"
 ];
 
-const EMPTY_AUTHOR = { prefix:"", name:"", department:"", orgSelect:"", organization:"", contact:"", email:"", authorRole:"", collabType:"", country:"India" };
+const EMPTY_AUTHOR = { name:"", department:"", orgSelect:"", organization:"", email:"", authorRole:"", collabType:"", country:"India" };
 
 const INIT = {
-  prefix:"", name:"", empId:"", designation:"", department:"",
+  name:"", empId:"", designation:"", department:"",
   orgSelect:"", organization:"",
-  phone:"", email:"",
+  email:"",
   paperTitle:"", paperType:"", authorType:"",
   authors:[],
-  journal:"", publisher:"", publisherType:"", publishingDate:"",
-  domainType:"", articleType:"",
-  accessType:"", indexing:"", quartile:"",
+  journal:"", publisher:"", publisherType:"", publishingMonth:"", publishingYear:"",
+  indexing:"", quartile:"",
   doi:"", preprintAvailable:"",
-  openAccessAmount:"",
   paperFile: null,
 };
 
 /* ── Validation ── */
 function validate(form) {
   const e = {};
-  if (!form.prefix)             e.prefix         = "Prefix required.";
   if (!form.name.trim())        e.name           = "Name required.";
   if (!form.empId.trim())       e.empId          = "Employee ID required.";
   if (!form.designation)        e.designation    = "Designation required.";
   if (!form.department)         e.department     = "Department required.";
   if (!form.orgSelect)          e.orgSelect      = "Organisation required.";
   if (form.orgSelect === "Others" && !form.organization.trim()) e.organization = "Please enter your organisation name.";
-  if (!form.phone.trim())       e.phone          = "Phone number required.";
   if (!form.email.trim())       e.email          = "Email required.";
   else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "Enter a valid email.";
   if (!form.paperTitle.trim())  e.paperTitle     = "Paper title required.";
@@ -81,20 +74,97 @@ function validate(form) {
   if (!form.journal.trim())     e.journal        = "Journal / venue name required.";
   if (!form.publisher.trim())   e.publisher      = "Publisher required.";
   if (BOOK_TYPES.includes(form.paperType) && !form.publisherType) e.publisherType = "Publisher type required.";
-  if (!form.publishingDate)     e.publishingDate = "Publishing date required.";
-  if (!form.domainType)         e.domainType     = "Domain type required.";
-  if (!form.articleType)        e.articleType    = "Article type required.";
-  if (ACCESS_PAPER_TYPES.includes(form.paperType) && !form.accessType) e.accessType = "Access type required.";
+  if (!form.publishingMonth)    e.publishingMonth = "Publishing month required.";
+  if (!form.publishingYear)     e.publishingYear  = "Publishing year required.";
   if (!form.indexing)           e.indexing       = "Indexing required.";
   if (QUARTILE_TYPES.includes(form.paperType) && !form.quartile) e.quartile = "Quartile required.";
-  if (form.accessType === "Open Access" && !String(form.openAccessAmount||"").trim()) e.openAccessAmount = "Enter the open access fee paid (INR).";
   if (!form.doi.trim())         e.doi            = "DOI is required.";
   if (!form.paperFile)          e.paperFile      = "Please upload the paper PDF.";
   return e;
 }
 
-/* ── PDF Report Generator — light orange header ── */
-/* ── Load pdf-lib from CDN (cached after first call) ── */
+/* ── Marks Calculator ── */
+function calculateMarks(formData) {
+  const indexing      = (formData.indexing   || "").toLowerCase();
+  const paperType     = (formData.paperType  || "").toLowerCase();
+  const quartile      = (formData.quartile   || "").toUpperCase();
+  const publisherType = (formData.publisherType || "").toLowerCase();
+  const authorType    = (formData.authorType || "");
+  const coAuthors     = formData.authors || [];
+
+  const submitterIsJss = !formData.orgSelect || formData.orgSelect === HOST_UNIVERSITY_FULL;
+  const jssCoAuthors = coAuthors.filter(a => {
+    const sel = (a.orgSelect || "").trim();
+    return sel === "" || sel === HOST_UNIVERSITY_FULL;
+  });
+  const totalJssAuthors = (submitterIsJss ? 1 : 0) + jssCoAuthors.length;
+
+  const hasIntlCollab = coAuthors.some(a => {
+    const ct = (a.collabType || "").toLowerCase();
+    const co = (a.country   || "").trim().toLowerCase();
+    if (ct === "international") return true;
+    if (co && co !== "india") return true;
+    return false;
+  });
+  const intlBonus = hasIntlCollab ? 1 : 0;
+
+  const isScopusWos = ["scopus","sci","scie","esci","web of science"].some(k => indexing.includes(k));
+
+  let basePoints = 0, category = "", breakdown = "", maxPoints = 0;
+
+  if (paperType === "journal" && isScopusWos) {
+    category  = "Category 1 — Scopus/WoS Indexed Journal Paper";
+    maxPoints = 15;
+    if (["Q1","Q2"].includes(quartile))      basePoints = 5;
+    else if (["Q3","Q4"].includes(quartile)) basePoints = 3;
+    else                                      basePoints = 3;
+
+    const totalPts = basePoints + intlBonus;
+    const isFirstOrCorr = ["First Author","Corresponding Author"].includes(authorType);
+    let allocatedPoints;
+
+    if (isFirstOrCorr) {
+      if (totalJssAuthors === 1) {
+        allocatedPoints = totalPts;
+        breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As ${authorType} (sole JSSSTU author): full ${totalPts} point${totalPts!==1?"s":""} awarded.`;
+      } else {
+        const otherShare = totalPts / totalJssAuthors;
+        allocatedPoints = totalPts;
+        breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As ${authorType}: full ${totalPts} pt${totalPts!==1?"s":""}. The remaining ${totalJssAuthors-1} JSSSTU co-author${totalJssAuthors>2?"s":""} equally share ${totalPts} pts (${otherShare.toFixed(2)} pts each).`;
+      }
+    } else {
+      const perAuthor = totalPts / totalJssAuthors;
+      allocatedPoints = perAuthor;
+      breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As Co-Author: ${totalPts} pts shared equally among ${totalJssAuthors} JSSSTU authors = ${perAuthor.toFixed(2)} pts each.`;
+    }
+    return { category, maxPoints, basePoints, intlBonus, allocatedPoints: Math.min(parseFloat(allocatedPoints.toFixed(2)), maxPoints), breakdown, hasIntlCollab };
+
+  } else if (["conference","book chapter","book"].includes(paperType) && isScopusWos) {
+    category  = "Category 2 — Scopus/WoS Indexed Conference / Book Chapter / Book";
+    maxPoints = 5;
+    if (paperType === "book") {
+      if (publisherType === "international") { basePoints = 5; breakdown = "Book by International Publisher: 5 pts/book."; }
+      else { basePoints = 4; breakdown = "Book by National Publisher: 4 pts/book."; }
+      basePoints += intlBonus;
+      breakdown  += intlBonus ? " + 1 Intl. Collaboration." : "";
+    } else {
+      basePoints = 2;
+      breakdown  = `${paperType === "conference" ? "Conference paper" : "Book chapter"}: 2 pts/publication.${intlBonus ? " + 1 Intl. Collaboration." : ""}`;
+      basePoints += intlBonus;
+    }
+    return { category, maxPoints, basePoints, intlBonus, allocatedPoints: Math.min(basePoints, maxPoints), breakdown, hasIntlCollab };
+
+  } else {
+    return {
+      category: "Other / Non-Scopus-WoS Publication", maxPoints: "N/A",
+      basePoints: 0, intlBonus: 0, allocatedPoints: 0,
+      breakdown: `Indexing (${formData.indexing || "—"}) does not fall under Category 1 or 2 of the JSSSTU marking scheme. Points not applicable.`,
+      hasIntlCollab,
+    };
+  }
+}
+
+/* ── PDF Generator ── */
 let _pdfLib = null;
 async function loadPdfLib() {
   if (_pdfLib) return _pdfLib;
@@ -111,199 +181,64 @@ async function loadPdfLib() {
   return _pdfLib;
 }
 
-/* ── Marks Calculator (per JSSSTU policy) ── */
-function calculateMarks(formData) {
-  const indexing    = (formData.indexing   || "").toLowerCase();
-  const paperType   = (formData.paperType  || "").toLowerCase();
-  const quartile    = (formData.quartile   || "").toUpperCase();
-  const publisherType = (formData.publisherType || "").toLowerCase();
-  const authorType  = (formData.authorType || "");
-  const coAuthors   = formData.authors || [];
-
-  // Host university: JSS Science and Technology University, Mysuru
-  // Submitter is JSSSTU if orgSelect === HOST_UNIVERSITY_FULL (or blank legacy)
-  const submitterIsJss = !formData.orgSelect || formData.orgSelect === HOST_UNIVERSITY_FULL;
-
-  // Co-authors at JSSSTU: orgSelect is JSSSTU or blank
-  const jssCoAuthors = coAuthors.filter(a => {
-    const sel = (a.orgSelect || "").trim();
-    return sel === "" || sel === HOST_UNIVERSITY_FULL;
-  });
-  const totalJssAuthors = (submitterIsJss ? 1 : 0) + jssCoAuthors.length;
-
-  // International collaboration: any co-author with country != India (or non-empty non-India country)
-  // Even ONE international author qualifies for international collab marks
-  const hasIntlCollab = coAuthors.some(a => {
-    const collabType = (a.collabType || "").toLowerCase();
-    const country    = (a.country   || "").trim().toLowerCase();
-    // International if explicitly set to "international" OR country is non-empty and not india
-    if (collabType === "international") return true;
-    if (country && country !== "india") return true;
-    return false;
-  });
-  const intlBonus = hasIntlCollab ? 1 : 0;
-
-  const isScopusWos = ["scopus","sci","scie","esci","web of science"].some(k => indexing.includes(k));
-
-  let basePoints = 0;
-  let category   = "";
-  let breakdown  = "";
-  let maxPoints  = 0;
-
-  if (paperType === "journal" && isScopusWos) {
-    /* ── Category 1: Scopus/WoS Journal ── */
-    category  = "Category 1 — Scopus/WoS Indexed Journal Paper";
-    maxPoints = 15;
-
-    if (["Q1","Q2"].includes(quartile))       basePoints = 5;
-    else if (["Q3","Q4"].includes(quartile))  basePoints = 3;
-    else                                       basePoints = 3; // default if no quartile
-
-    const totalPts = basePoints + intlBonus;
-
-    // Authorship allocation
-    const isFirstOrCorr = ["First Author","Corresponding Author"].includes(authorType);
-    let allocatedPoints;
-
-    if (isFirstOrCorr) {
-      // First/Corresponding author from JSSSTU → full points; rest share equally
-      if (totalJssAuthors === 1) {
-        allocatedPoints = totalPts;
-        breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As ${authorType} (sole JSSSTU author): full ${totalPts} point${totalPts!==1?"s":""} awarded.`;
-      } else {
-        const otherShare = totalPts / totalJssAuthors;
-        allocatedPoints = totalPts; // first/corr gets full points
-        breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As ${authorType}: full ${totalPts} pt${totalPts!==1?"s":""}. The remaining ${totalJssAuthors-1} JSSSTU co-author${totalJssAuthors>2?"s":""} equally share ${totalPts} pts (${otherShare.toFixed(2)} pts each).`;
-      }
-    } else {
-      // Co-Author: points shared equally among all JSSSTU authors
-      const perAuthor = totalPts / totalJssAuthors;
-      allocatedPoints = perAuthor;
-      breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As Co-Author: ${totalPts} pts shared equally among ${totalJssAuthors} JSSSTU authors = ${perAuthor.toFixed(2)} pts each.`;
-    }
-
-    return {
-      category, maxPoints,
-      basePoints, intlBonus,
-      allocatedPoints: Math.min(parseFloat(allocatedPoints.toFixed(2)), maxPoints),
-      breakdown,
-      hasIntlCollab,
-    };
-
-  } else if (["conference","book chapter","book"].includes(paperType) && isScopusWos) {
-    /* ── Category 2: Scopus/WoS Conference / Book Chapter / Book ── */
-    category  = "Category 2 — Scopus/WoS Indexed Conference / Book Chapter / Book";
-    maxPoints = 5;
-
-    if (paperType === "book") {
-      if (publisherType === "international") {
-        basePoints = 5;
-        breakdown  = "Book by International Publisher: 5 pts/book.";
-      } else {
-        basePoints = 4;
-        breakdown  = "Book by National Publisher: 4 pts/book.";
-      }
-      basePoints += intlBonus;
-      breakdown  += intlBonus ? " + 1 Intl. Collaboration." : "";
-    } else {
-      basePoints = 2;
-      breakdown  = `${paperType === "conference" ? "Conference paper" : "Book chapter"}: 2 pts/publication.${intlBonus ? " + 1 Intl. Collaboration." : ""}`;
-      basePoints += intlBonus;
-    }
-
-    const allocatedPoints = Math.min(basePoints, maxPoints);
-    return {
-      category, maxPoints,
-      basePoints, intlBonus,
-      allocatedPoints,
-      breakdown,
-      hasIntlCollab,
-    };
-
-  } else {
-    /* Non-indexed or UGC Care etc — not in main categories, informational only */
-    return {
-      category:  "Other / Non-Scopus-WoS Publication",
-      maxPoints: "N/A",
-      basePoints: 0, intlBonus: 0,
-      allocatedPoints: 0,
-      breakdown: `Indexing (${formData.indexing || "—"}) does not fall under Category 1 or 2 of the JSSSTU marking scheme. Points not applicable.`,
-      hasIntlCollab,
-    };
-  }
-}
-
-/* ── Build cover-sheet + merge with uploaded paper PDF ── */
 async function generateAndDownloadMergedPDF(formData, ackNumber) {
   const { PDFDocument, rgb, StandardFonts } = await loadPdfLib();
-
   const now = new Date().toLocaleString("en-IN", { dateStyle:"long", timeStyle:"short", timeZone:"Asia/Kolkata" });
-
-  /* ── Calculate marks ── */
   const marks = calculateMarks(formData);
 
-  /* ── 1. Build cover-sheet PDF ── */
   const coverDoc = await PDFDocument.create();
-  const page     = coverDoc.addPage([595, 842]); // A4
+  const page     = coverDoc.addPage([595, 842]);
   const { width, height } = page.getSize();
 
   const fontBold    = await coverDoc.embedFont(StandardFonts.HelveticaBold);
   const fontRegular = await coverDoc.embedFont(StandardFonts.Helvetica);
 
-  const navy       = rgb(0.04, 0.18, 0.43);
-  const orange     = rgb(0.96, 0.43, 0.00);
-  const orangeLight= rgb(1.0,  0.95, 0.88);  // light orange — matches ack box
-  const orangeMid  = rgb(1.0,  0.91, 0.77);  // slightly deeper for gradient feel
-  const grey       = rgb(0.47, 0.57, 0.72);
-  const light      = rgb(0.94, 0.96, 1.0);
-  const green      = rgb(0.08, 0.55, 0.20);
+  const navy        = rgb(0.04, 0.18, 0.43);
+  const orange      = rgb(0.96, 0.43, 0.00);
+  const orangeLight = rgb(1.0,  0.95, 0.88);
+  const grey        = rgb(0.47, 0.57, 0.72);
+  const light       = rgb(0.94, 0.96, 1.0);
+  const green       = rgb(0.08, 0.55, 0.20);
 
-  /* ── Header — light orange background (matches ack box) ── */
   const headerH = 120;
   page.drawRectangle({ x:0, y:height-headerH, width, height:headerH, color:orangeLight });
   page.drawLine({ start:{x:0, y:height-headerH}, end:{x:width, y:height-headerH}, thickness:3, color:orange });
 
-  /* Logo — centered, 75×55 px */
   const logoX = (width - 75) / 2;
   const logoY = height - headerH + 8;
   try {
-    const logoResp  = await fetch("/logo.png");
+    const logoResp = await fetch("/logo.png");
     if (logoResp.ok) {
       const logoBytes = await logoResp.arrayBuffer();
-      const logoImg   = await coverDoc.embedPng(new Uint8Array(logoBytes)).catch(async () =>
-        coverDoc.embedJpg(new Uint8Array(logoBytes))
-      );
+      const logoImg   = await coverDoc.embedPng(new Uint8Array(logoBytes)).catch(async () => coverDoc.embedJpg(new Uint8Array(logoBytes)));
       page.drawImage(logoImg, { x:logoX, y:logoY, width:75, height:55 });
     }
-  } catch (_) { /* logo optional — skip silently */ }
+  } catch (_) {}
 
-  /* Title text — centered under logo */
   const titleText = "ONE PAPER ONE CLAIM";
   const titleW    = fontBold.widthOfTextAtSize(titleText, 16);
   page.drawText(titleText, { x:(width-titleW)/2, y:height-25, font:fontBold, size:16, color:navy });
 
   const subText = "JSS Science and Technology University — Research Publication Portal";
   const subW    = fontRegular.widthOfTextAtSize(subText, 8.5);
-  page.drawText(subText,  { x:(width-subW)/2,   y:height-40, font:fontRegular, size:8.5, color:rgb(0.3,0.4,0.6) });
+  page.drawText(subText, { x:(width-subW)/2, y:height-40, font:fontRegular, size:8.5, color:rgb(0.3,0.4,0.6) });
 
   const rptText = "SUBMISSION REPORT";
   const rptW    = fontBold.widthOfTextAtSize(rptText, 9);
-  page.drawText(rptText,  { x:(width-rptW)/2,   y:height-55, font:fontBold,    size:9,   color:orange });
+  page.drawText(rptText, { x:(width-rptW)/2, y:height-55, font:fontBold, size:9, color:orange });
 
-  /* ── Ack box ── */
   const boxY = height - headerH - 68;
   page.drawRectangle({ x:40, y:boxY, width:width-80, height:55, color:orangeLight, borderColor:orange, borderWidth:1.2 });
   const ackLabel = "ACKNOWLEDGEMENT NUMBER";
   const ackLW    = fontBold.widthOfTextAtSize(ackLabel, 8);
-  page.drawText(ackLabel, { x:(width-ackLW)/2,                  y:boxY+38, font:fontBold,    size:8,  color:orange });
-  const ackW     = fontBold.widthOfTextAtSize(ackNumber, 18);
-  page.drawText(ackNumber,{ x:(width-ackW)/2,                    y:boxY+16, font:fontBold,    size:18, color:navy  });
+  page.drawText(ackLabel,  { x:(width-ackLW)/2, y:boxY+38, font:fontBold, size:8, color:orange });
+  const ackW = fontBold.widthOfTextAtSize(ackNumber, 18);
+  page.drawText(ackNumber, { x:(width-ackW)/2,  y:boxY+16, font:fontBold, size:18, color:navy });
   page.drawText(`Submitted: ${now}`, { x:44, y:boxY+4, font:fontRegular, size:7.5, color:grey });
 
   let curY = boxY - 22;
   let currentPage = page;
 
-  /* ── Helpers — multi-page aware ── */
   const ensureSpace = (needed = 20) => {
     if (curY - needed < 38) {
       const np = coverDoc.addPage([595, 842]);
@@ -323,7 +258,7 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
 
   const row = (label, value) => {
     if (!value || value === "—" || value === "") return;
-    const val  = String(value);
+    const val   = String(value);
     const maxCh = 52;
     ensureSpace(val.length > maxCh ? 32 : 18);
     currentPage.drawText(label, { x:44,  y:curY, font:fontBold,    size:9, color:grey });
@@ -336,28 +271,26 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
     curY -= 16;
   };
 
+  const publishingDisplay = [formData.publishingMonth, formData.publishingYear].filter(Boolean).join(" ");
+
   sectionHead("Submitter Information");
-  row("Name",         `${formData.prefix||""} ${formData.name}`);
+  row("Name",         formData.name);
   row("Employee ID",  formData.empId);
   row("Designation",  formData.designation);
   row("Department",   formData.department);
   row("Organisation", formData.orgSelect === "Others" ? (formData.organization || "—") : (formData.orgSelect || HOST_UNIVERSITY_FULL));
   row("Email",        formData.email);
-  row("Phone",        formData.phone);
 
   curY -= 6;
   sectionHead("Paper Details");
   row("Title",           formData.paperTitle);
   row("Paper Type",      formData.paperType);
-  row("Article Type",    formData.articleType);
-  row("Domain",          formData.domainType);
   row("Author Role",     formData.authorType);
   row("Journal / Venue", formData.journal);
   row("Publisher",       formData.publisher + (formData.publisherType ? ` (${formData.publisherType})` : ""));
-  row("Publishing Date", formData.publishingDate);
+  row("Publishing Date", publishingDisplay);
   row("Indexing",        formData.indexing);
   row("Quartile",        formData.quartile);
-  row("Access Type",     formData.accessType);
   row("DOI",             formData.doi);
   row("Preprint",        formData.preprintAvailable);
 
@@ -365,40 +298,32 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
     curY -= 4;
     sectionHead("Co-Authors");
     formData.authors.forEach((a, i) => {
-      const collabLabel  = a.collabType ? ` [${a.collabType}]` : "";
-      const countryLabel = a.country && a.country !== "India" ? ` · ${a.country}` : (a.country === "India" ? " · India" : "");
-      const roleLabel    = a.authorRole ? ` (${a.authorRole})` : "";
-      const resolvedOrg  = a.orgSelect === "Others" ? (a.organization || "—") : (a.orgSelect || HOST_UNIVERSITY_FULL);
-      const orgLabel     = ` — ${resolvedOrg}`;
-      row(`Author ${i+2}${roleLabel}`, `${a.prefix||""} ${a.name}${orgLabel}${collabLabel}${countryLabel}`);
+      const collabLabel = a.collabType ? ` [${a.collabType}]` : "";
+      const roleLabel   = a.authorRole ? ` (${a.authorRole})` : "";
+      const resolvedOrg = a.orgSelect === "Others" ? (a.organization || "—") : (a.orgSelect || HOST_UNIVERSITY_FULL);
+      row(`Author ${i+2}${roleLabel}`, `${a.name} — ${resolvedOrg}${collabLabel}`);
     });
   }
 
-  /* ── Marks / Points Section ── */
+  /* Marks Section */
   curY -= 8;
   ensureSpace(110);
-
-  // Green header bar for marks
   currentPage.drawRectangle({ x:40, y:curY-2, width:width-80, height:16, color:rgb(0.88,0.97,0.90) });
   currentPage.drawText("POINTS AWARDED (JSSSTU RESEARCH PUBLICATION SCHEME)", { x:44, y:curY, font:fontBold, size:8, color:green });
   curY -= 24;
 
-  // Category box
   currentPage.drawRectangle({ x:40, y:curY-42, width:width-80, height:52, color:orangeLight, borderColor:orange, borderWidth:0.8 });
-  currentPage.drawText("Category", { x:55, y:curY-6,  font:fontBold,    size:8,  color:grey  });
-  currentPage.drawText(marks.category, { x:150, y:curY-6, font:fontRegular, size:8, color:navy });
-  currentPage.drawText("Max Points",   { x:55, y:curY-20, font:fontBold,    size:8,  color:grey  });
+  currentPage.drawText("Category",       { x:55, y:curY-6,  font:fontBold,    size:8, color:grey });
+  currentPage.drawText(marks.category,   { x:150, y:curY-6, font:fontRegular, size:8, color:navy });
+  currentPage.drawText("Max Points",     { x:55, y:curY-20, font:fontBold,    size:8, color:grey });
   currentPage.drawText(String(marks.maxPoints), { x:150, y:curY-20, font:fontRegular, size:8, color:navy });
-  currentPage.drawText("Points Awarded", { x:55, y:curY-34, font:fontBold, size:8,  color:grey  });
-
-  // Big points number
-  const ptsStr  = typeof marks.allocatedPoints === "number" ? marks.allocatedPoints.toFixed(2) : "0.00";
-  const ptsW    = fontBold.widthOfTextAtSize(ptsStr, 16);
+  currentPage.drawText("Points Awarded", { x:55, y:curY-34, font:fontBold,    size:8, color:grey });
+  const ptsStr = typeof marks.allocatedPoints === "number" ? marks.allocatedPoints.toFixed(2) : "0.00";
+  const ptsW   = fontBold.widthOfTextAtSize(ptsStr, 16);
   currentPage.drawText(ptsStr, { x:150, y:curY-38, font:fontBold, size:16, color:green });
   currentPage.drawText("pts", { x:150 + ptsW + 4, y:curY-34, font:fontRegular, size:9, color:grey });
   curY -= 52;
 
-  // International collab badge
   if (marks.hasIntlCollab) {
     curY -= 4;
     currentPage.drawRectangle({ x:40, y:curY-14, width:250, height:16, color:rgb(0.9,0.95,1.0), borderColor:rgb(0.3,0.5,0.9), borderWidth:0.6 });
@@ -406,12 +331,10 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
     curY -= 20;
   }
 
-  // Breakdown note
   curY -= 6;
   ensureSpace(36);
   currentPage.drawText("Breakdown:", { x:44, y:curY, font:fontBold, size:8, color:grey });
   curY -= 14;
-  // Wrap breakdown text at ~80 chars
   const bdText = marks.breakdown;
   const chPerLine = 88;
   for (let i = 0; i < bdText.length; i += chPerLine) {
@@ -424,16 +347,12 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
   ensureSpace(24);
   currentPage.drawRectangle({ x:40, y:curY-16, width:width-80, height:20, color:rgb(0.97,0.98,1.0), borderColor:light, borderWidth:0.5 });
   currentPage.drawText("Note: Points are calculated automatically based on submitted data per the JSSSTU Research Publication Incentive Scheme.", { x:46, y:curY-10, font:fontRegular, size:7, color:rgb(0.4,0.4,0.5) });
-  curY -= 24;
 
-  /* ── Footer on first page ── */
   page.drawRectangle({ x:0, y:0, width, height:30, color:navy });
   page.drawText(`© ${new Date().getFullYear()} One Paper One Claim · JSS Science and Technology University · office.deanres@jssstuniv.in`,
     { x:40, y:10, font:fontRegular, size:8, color:rgb(0.7,0.8,1) });
 
   const coverBytes = await coverDoc.save();
-
-  /* ── 2. Merge cover + uploaded paper PDF ── */
   let finalBytes = coverBytes;
 
   if (formData.paperFile instanceof File) {
@@ -442,20 +361,16 @@ async function generateAndDownloadMergedPDF(formData, ackNumber) {
       const mergedDoc    = await PDFDocument.create();
       const coverSrc     = await PDFDocument.load(coverBytes);
       const uploadedSrc  = await PDFDocument.load(uploadedArrayBuffer);
-
       const coverPages    = await mergedDoc.copyPages(coverSrc,    coverSrc.getPageIndices());
       const uploadedPages = await mergedDoc.copyPages(uploadedSrc, uploadedSrc.getPageIndices());
-
       coverPages.forEach(p    => mergedDoc.addPage(p));
       uploadedPages.forEach(p => mergedDoc.addPage(p));
-
       finalBytes = await mergedDoc.save();
     } catch (mergeErr) {
-      console.warn("PDF merge failed, downloading cover sheet only:", mergeErr.message);
+      console.warn("PDF merge failed:", mergeErr.message);
     }
   }
 
-  /* ── 3. Trigger download ── */
   const blob = new Blob([finalBytes], { type:"application/pdf" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
@@ -492,17 +407,17 @@ export default function Apply() {
   const [modal, setModal]           = useState(null);
   const [fileLabel, setFileLabel]   = useState("");
   const [fileError, setFileError]   = useState("");
+  const [downloading, setDownloading] = useState(false);
   const submittedFormRef            = useRef(null);
 
   const showQuartile = QUARTILE_TYPES.includes(form.paperType);
-  const showAccess   = ACCESS_PAPER_TYPES.includes(form.paperType);
   const showAuthors  = !!form.authorType;
   const showPubType  = BOOK_TYPES.includes(form.paperType);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "paperType") {
-      setForm(p => ({ ...p, paperType:value, quartile:"", accessType:"", openAccessAmount:"", publisherType:"" }));
+      setForm(p => ({ ...p, paperType:value, quartile:"", publisherType:"" }));
     } else if (name === "authorType") {
       setForm(p => ({ ...p, authorType:value, authors:[] }));
     } else {
@@ -514,7 +429,6 @@ export default function Apply() {
   const addAuthor    = () => { if (form.authors.length >= MAX_AUTHORS) return; setForm(p => ({ ...p, authors:[...p.authors, {...EMPTY_AUTHOR}] })); };
   const removeAuthor = (idx) => setForm(p => ({ ...p, authors:p.authors.filter((_,i)=>i!==idx) }));
   const updateAuthor = (idx, field, value) => setForm(p => ({ ...p, authors:p.authors.map((a,i)=>i===idx?{...a,[field]:value}:a) }));
-  // Batch update multiple fields atomically (avoids stale-closure race on double setState)
   const updateAuthorMulti = (idx, fields) => setForm(p => ({ ...p, authors:p.authors.map((a,i)=>i===idx?{...a,...fields}:a) }));
 
   const handleFile = (e) => {
@@ -540,21 +454,21 @@ export default function Apply() {
     }
     setSubmitting(true);
     try {
-      const { paperFile, ...rest } = form;
-      const result = await submitPaper(rest, paperFile);
-      submittedFormRef.current = { ...rest, paperFile };   // keep file for PDF merge
+      const publishingDate = [form.publishingMonth, form.publishingYear].filter(Boolean).join(" ");
+      const { paperFile, publishingMonth, publishingYear, ...rest } = form;
+      const payload = { ...rest, publishingDate };
+      const result = await submitPaper(payload, paperFile);
+      submittedFormRef.current = { ...payload, paperFile };
       setModal({ type:"success", ackNumber:result.ackNumber });
       setForm(INIT); setErrors({}); setFileLabel("");
     } catch (err) {
-      if (err.error === "DUPLICATE")       setModal({ type:"duplicate", message:err.message });
+      if (err.error === "DUPLICATE")           setModal({ type:"duplicate", message:err.message });
       else if (err.error === "INVALID_DOMAIN") setErrors(p => ({ ...p, email:err.message }));
       else setModal({ type:"error", message:err.message || "Submission failed. Please try again." });
     } finally {
       setSubmitting(false);
     }
   };
-
-  const [downloading, setDownloading] = useState(false);
 
   const handleDownloadReport = async () => {
     if (!submittedFormRef.current || !modal?.ackNumber) return;
@@ -580,65 +494,8 @@ export default function Apply() {
       <GlassCard className="form-card">
         <form onSubmit={handleSubmit} noValidate>
 
-          {/* ── 1. Personal ── */}
-          <div className="form-section-label">Personal Information</div>
-          <div className="form-grid-3">
-            <Field id="prefix" label="Prefix" required error={errors.prefix}>
-              <select id="prefix" name="prefix" className="form-select" value={form.prefix} onChange={handleChange}>
-                <option value="">Select</option>
-                {PREFIXES.map(p=><option key={p} value={p}>{p}</option>)}
-              </select>
-            </Field>
-            <Field id="name" label="Full Name" required error={errors.name}>
-              <input id="name" name="name" type="text" className="form-input" placeholder="Full legal name" value={form.name} onChange={handleChange}/>
-            </Field>
-            <Field id="empId" label="Employee ID" required error={errors.empId}>
-              <input id="empId" name="empId" type="text" className="form-input" placeholder="EMP / Faculty ID" value={form.empId} onChange={handleChange}/>
-            </Field>
-          </div>
-          <div className="form-grid">
-            <Field id="designation" label="Designation" required error={errors.designation}>
-              <select id="designation" name="designation" className="form-select" value={form.designation} onChange={handleChange}>
-                <option value="">Select</option>
-                {DESIGNATIONS.map(d=><option key={d} value={d}>{d}</option>)}
-              </select>
-            </Field>
-            <Field id="department" label="Department" required error={errors.department}>
-              <select id="department" name="department" className="form-select" value={form.department} onChange={handleChange}>
-                <option value="">Select</option>
-                {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
-              </select>
-            </Field>
-          </div>
-          <div className="form-grid">
-            <Field id="phone" label="Phone Number" required error={errors.phone}>
-              <input id="phone" name="phone" type="tel" className="form-input" placeholder="+91 XXXXX XXXXX" value={form.phone} onChange={handleChange}/>
-            </Field>
-            <Field id="email" label="Email Address" required error={errors.email}>
-              <input id="email" name="email" type="email" className="form-input" placeholder="name@jssstuniv.in" value={form.email} onChange={handleChange}/>
-            </Field>
-          </div>
-          <div className={form.orgSelect === "Others" ? "form-grid" : ""}>
-            <Field id="orgSelect" label="Organisation" required error={errors.orgSelect}>
-              <select id="orgSelect" name="orgSelect" className="form-select" value={form.orgSelect} onChange={e => {
-                const val = e.target.value;
-                setForm(p => ({ ...p, orgSelect: val, organization: val !== "Others" ? "" : p.organization }));
-                if (errors.orgSelect) setErrors(p => ({ ...p, orgSelect: "" }));
-                if (errors.organization) setErrors(p => ({ ...p, organization: "" }));
-              }}>
-                <option value="">Select organisation</option>
-                {ORG_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </Field>
-            {form.orgSelect === "Others" && (
-              <Field id="organization" label="Enter Organisation Name" required error={errors.organization}>
-                <input id="organization" name="organization" type="text" className="form-input" placeholder="Full name of your university / institution" value={form.organization} onChange={handleChange}/>
-              </Field>
-            )}
-          </div>
-
-          {/* ── 2. Paper Details ── */}
-          <div className="form-section-label" style={{marginTop:"1.3rem"}}>Paper Details</div>
+          {/* ── 1. Paper Details ── */}
+          <div className="form-section-label">Paper Details</div>
           <Field id="paperTitle" label="Paper Title" required error={errors.paperTitle}>
             <input id="paperTitle" name="paperTitle" type="text" className="form-input" placeholder="Full title of your published paper" value={form.paperTitle} onChange={handleChange}/>
           </Field>
@@ -649,20 +506,6 @@ export default function Apply() {
                 {PAPER_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
             </Field>
-            <Field id="articleType" label="Type of Article" required error={errors.articleType}>
-              <select id="articleType" name="articleType" className="form-select" value={form.articleType} onChange={handleChange}>
-                <option value="">Select article type</option>
-                {ARTICLE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
-            </Field>
-          </div>
-          <div className="form-grid">
-            <Field id="domainType" label="Domain Type" required error={errors.domainType}>
-              <select id="domainType" name="domainType" className="form-select" value={form.domainType} onChange={handleChange}>
-                <option value="">Select domain</option>
-                {DOMAIN_TYPES.map(d=><option key={d} value={d}>{d}</option>)}
-              </select>
-            </Field>
             <Field id="authorType" label="Author Type" required error={errors.authorType}>
               <select id="authorType" name="authorType" className="form-select" value={form.authorType} onChange={handleChange}>
                 <option value="">Select author type</option>
@@ -671,7 +514,7 @@ export default function Apply() {
             </Field>
           </div>
 
-          {/* Additional Authors */}
+          {/* ── Additional Authors / Co-Authors ── */}
           {showAuthors && (
             <div className="conditional-field" style={{marginBottom:"0.5rem"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.75rem"}}>
@@ -686,7 +529,6 @@ export default function Apply() {
                     <button type="button" className="btn-remove" onClick={()=>removeAuthor(idx)}><XIcon/> Remove</button>
                   </div>
 
-                  {/* Type of Author & Type of Collaboration */}
                   <div className="form-grid">
                     <div className="form-group">
                       <label className="form-label">Type of Author <span className="required">*</span></label>
@@ -700,9 +542,11 @@ export default function Apply() {
                       <select className="form-select" value={author.collabType}
                         onChange={e=>{
                           const val = e.target.value;
-                          // Reset country to India when switching to National
-                          if (val === "National") updateAuthorMulti(idx,{collabType:val, country:"India"});
-                          else updateAuthor(idx,"collabType",val);
+                          if (val === "National" || val === "In-house") {
+                            updateAuthorMulti(idx,{collabType:val, country:"India"});
+                          } else {
+                            updateAuthor(idx,"collabType",val);
+                          }
                         }}>
                         <option value="">Select collaboration</option>
                         {COLLAB_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
@@ -710,51 +554,12 @@ export default function Apply() {
                     </div>
                   </div>
 
-                  {/* Country — always shown, validated for international */}
+                  {/* Full Name (no prefix) */}
                   <div className="form-group">
-                    <label className="form-label">
-                      Country <span className="required">*</span>
-                      {author.collabType==="International" && (
-                        <span style={{marginLeft:"0.5rem",fontSize:"0.7rem",fontWeight:600,color:"var(--orange)",background:"rgba(245,110,0,0.08)",padding:"1px 7px",borderRadius:"20px",letterSpacing:"0.03em"}}>
-                          ★ International Collaboration
-                        </span>
-                      )}
-                    </label>
-                    <select className="form-select" value={author.country}
-                      onChange={e=>{
-                        const country = e.target.value;
-                        // Auto-sync collabType based on country atomically
-                        if (country && country !== "India") updateAuthorMulti(idx,{country, collabType:"International"});
-                        else updateAuthorMulti(idx,{country, collabType:"National"});
-                      }}>
-                      <option value="">Select country</option>
-                      {COUNTRIES.map(c=><option key={c} value={c}>{c}</option>)}
-                    </select>
-                    {author.collabType==="International" && author.country && author.country !== "India" && (
-                      <span className="form-hint" style={{color:"var(--orange)",fontWeight:500}}>
-                        ✓ International collaboration marks will be awarded for this submission.
-                      </span>
-                    )}
-                    {author.collabType==="International" && author.country === "India" && (
-                      <span className="form-hint" style={{color:"#dc2626",fontWeight:500}}>
-                        ⚠ International collaboration requires a non-India country. Please select the correct country.
-                      </span>
-                    )}
+                    <label className="form-label">Full Name</label>
+                    <input type="text" className="form-input" placeholder="Full name" value={author.name} onChange={e=>updateAuthor(idx,"name",e.target.value)}/>
                   </div>
 
-                  <div className="form-grid-3">
-                    <div className="form-group">
-                      <label className="form-label">Prefix</label>
-                      <select className="form-select" value={author.prefix} onChange={e=>updateAuthor(idx,"prefix",e.target.value)}>
-                        <option value="">Select</option>
-                        {PREFIXES.map(p=><option key={p} value={p}>{p}</option>)}
-                      </select>
-                    </div>
-                    <div className="form-group" style={{gridColumn:"span 2"}}>
-                      <label className="form-label">Full Name</label>
-                      <input type="text" className="form-input" placeholder="Full name" value={author.name} onChange={e=>updateAuthor(idx,"name",e.target.value)}/>
-                    </div>
-                  </div>
                   <div className="form-grid">
                     <div className="form-group">
                       <label className="form-label">Department</label>
@@ -766,11 +571,10 @@ export default function Apply() {
                         onChange={e=>{
                           const val = e.target.value;
                           updateAuthorMulti(idx,{
-                            orgSelect: val,
+                            orgSelect:    val,
                             organization: val !== "Others" ? "" : author.organization,
-                            // Auto-set collabType: JSSSTU = National, Others = keep current or blank
-                            collabType: val === HOST_UNIVERSITY_FULL ? "National" : author.collabType,
-                            country:    val === HOST_UNIVERSITY_FULL ? "India"    : author.country,
+                            collabType:   val === HOST_UNIVERSITY_FULL ? "In-house" : author.collabType,
+                            country:      val === HOST_UNIVERSITY_FULL ? "India"    : author.country,
                           });
                         }}>
                         <option value="">Select organisation</option>
@@ -778,15 +582,37 @@ export default function Apply() {
                       </select>
                     </div>
                   </div>
+
                   {author.orgSelect === "Others" && (
                     <div className="form-group">
                       <label className="form-label">Enter Organisation Name <span className="required">*</span></label>
                       <input type="text" className="form-input" placeholder="Full name of university / institution" value={author.organization} onChange={e=>updateAuthor(idx,"organization",e.target.value)}/>
                     </div>
                   )}
-                  <div className="form-grid">
-                    <div className="form-group"><label className="form-label">Contact Number</label><input type="tel" className="form-input" placeholder="+91 XXXXX XXXXX" value={author.contact} onChange={e=>updateAuthor(idx,"contact",e.target.value)}/></div>
-                    <div className="form-group"><label className="form-label">Email</label><input type="email" className="form-input" placeholder="author@email.com" value={author.email} onChange={e=>updateAuthor(idx,"email",e.target.value)}/></div>
+
+                  {/* Country only shown (hidden) for International — used for scoring in backend */}
+                  {author.collabType === "International" && (
+                    <div className="form-group">
+                      <label className="form-label">
+                        Country
+                        <span style={{marginLeft:"0.5rem",fontSize:"0.7rem",fontWeight:600,color:"var(--orange)",background:"rgba(245,110,0,0.08)",padding:"1px 7px",borderRadius:"20px"}}>
+                          ★ International Collaboration
+                        </span>
+                      </label>
+                      <select className="form-select" value={author.country}
+                        onChange={e=>updateAuthorMulti(idx,{country:e.target.value})}>
+                        <option value="">Select country</option>
+                        {COUNTRIES.map(c=><option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <span className="form-hint" style={{color:"var(--orange)",fontWeight:500}}>
+                        ✓ International collaboration marks will be awarded for this submission.
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="form-group">
+                    <label className="form-label">Email</label>
+                    <input type="email" className="form-input" placeholder="author@email.com" value={author.email} onChange={e=>updateAuthor(idx,"email",e.target.value)}/>
                   </div>
                 </div>
               ))}
@@ -798,11 +624,57 @@ export default function Apply() {
             </div>
           )}
 
-          {/* ── 3. Journal & Publication ── */}
+          {/* ── 2. Personal Details ── */}
+          <div className="form-section-label" style={{marginTop:"1.3rem"}}>Personal Details</div>
+          <div className="form-grid">
+            <Field id="name" label="Full Name" required error={errors.name}>
+              <input id="name" name="name" type="text" className="form-input" placeholder="Full legal name" value={form.name} onChange={handleChange}/>
+            </Field>
+            <Field id="empId" label="Employee ID" required error={errors.empId}>
+              <input id="empId" name="empId" type="text" className="form-input" placeholder="EMP / Faculty ID" value={form.empId} onChange={handleChange}/>
+            </Field>
+          </div>
+          <div className="form-grid">
+            <Field id="department" label="Department" required error={errors.department}>
+              <select id="department" name="department" className="form-select" value={form.department} onChange={handleChange}>
+                <option value="">Select</option>
+                {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
+              </select>
+            </Field>
+            <Field id="designation" label="Designation" required error={errors.designation}>
+              <select id="designation" name="designation" className="form-select" value={form.designation} onChange={handleChange}>
+                <option value="">Select</option>
+                {DESIGNATIONS.map(d=><option key={d} value={d}>{d}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field id="email" label="Email Address" required error={errors.email}>
+            <input id="email" name="email" type="email" className="form-input" placeholder="name@jssstuniv.in" value={form.email} onChange={handleChange}/>
+          </Field>
+          <div className={form.orgSelect === "Others" ? "form-grid" : ""}>
+            <Field id="orgSelect" label="Organisation" required error={errors.orgSelect}>
+              <select id="orgSelect" name="orgSelect" className="form-select" value={form.orgSelect} onChange={e => {
+                const val = e.target.value;
+                setForm(p => ({ ...p, orgSelect:val, organization:val !== "Others" ? "" : p.organization }));
+                if (errors.orgSelect) setErrors(p => ({ ...p, orgSelect:"" }));
+                if (errors.organization) setErrors(p => ({ ...p, organization:"" }));
+              }}>
+                <option value="">Select organisation</option>
+                {ORG_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </Field>
+            {form.orgSelect === "Others" && (
+              <Field id="organization" label="Enter Organisation Name" required error={errors.organization}>
+                <input id="organization" name="organization" type="text" className="form-input" placeholder="Full name of your university / institution" value={form.organization} onChange={handleChange}/>
+              </Field>
+            )}
+          </div>
+
+          {/* ── 3. Journal & Publication Details ── */}
           <div className="form-section-label" style={{marginTop:"1.3rem"}}>Journal &amp; Publication Details</div>
           <div className="form-grid">
             <Field id="journal" label="Journal / Venue Name" required error={errors.journal}>
-              <input id="journal" name="journal" type="text" className="form-input" placeholder="e.g. IEEE Transactions on..." value={form.journal} onChange={handleChange}/>
+              <input id="journal" name="journal" type="text" className="form-input" placeholder="e.g. IEEE Transactions on…" value={form.journal} onChange={handleChange}/>
             </Field>
             <Field id="publisher" label="Publisher" required error={errors.publisher}>
               <input id="publisher" name="publisher" type="text" className="form-input" placeholder="e.g. Elsevier, Springer, IEEE" value={form.publisher} onChange={handleChange}/>
@@ -825,49 +697,38 @@ export default function Apply() {
             </div>
           )}
 
+          {/* Publishing Date: Month + Year dropdowns */}
           <div className="form-grid">
-            <Field id="publishingDate" label="Publishing Date" required error={errors.publishingDate}>
-              <input id="publishingDate" name="publishingDate" type="date" className="form-input" value={form.publishingDate} onChange={handleChange}/>
+            <Field id="publishingMonth" label="Publishing Month" required error={errors.publishingMonth}>
+              <select id="publishingMonth" name="publishingMonth" className="form-select" value={form.publishingMonth} onChange={handleChange}>
+                <option value="">Select month</option>
+                {MONTHS.map(m=><option key={m} value={m}>{m}</option>)}
+              </select>
             </Field>
+            <Field id="publishingYear" label="Publishing Year" required error={errors.publishingYear}>
+              <select id="publishingYear" name="publishingYear" className="form-select" value={form.publishingYear} onChange={handleChange}>
+                <option value="">Select year</option>
+                {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
+              </select>
+            </Field>
+          </div>
+
+          <div className="form-grid">
             <Field id="indexing" label="Indexing" required error={errors.indexing}>
               <select id="indexing" name="indexing" className="form-select" value={form.indexing} onChange={handleChange}>
                 <option value="">Select indexing</option>
                 {INDEXING_OPTS.map(i=><option key={i} value={i}>{i}</option>)}
               </select>
             </Field>
-          </div>
-
-          {showAccess && (
-            <div className="conditional-field">
-              <Field id="accessType" label="Type of Access" required error={errors.accessType}>
-                <select id="accessType" name="accessType" className="form-select" value={form.accessType} onChange={handleChange}>
-                  <option value="">Select access type</option>
-                  {ACCESS_TYPES.map(a=><option key={a} value={a}>{a}</option>)}
-                </select>
-              </Field>
-              {form.accessType==="Open Access" && (
-                <div className="conditional-field">
-                  <Field id="openAccessAmount" label="Open Access Fee Paid (INR)" required error={errors.openAccessAmount} hint="Enter the APC (Article Processing Charge) paid">
-                    <div style={{position:"relative"}}>
-                      <span style={{position:"absolute",left:"1rem",top:"50%",transform:"translateY(-50%)",fontSize:"0.88rem",fontWeight:600,color:"var(--text-secondary)",pointerEvents:"none"}}>₹</span>
-                      <input id="openAccessAmount" name="openAccessAmount" type="number" min="0" className="form-input" style={{paddingLeft:"2rem"}} placeholder="e.g. 25000" value={form.openAccessAmount||""} onChange={handleChange}/>
-                    </div>
-                  </Field>
-                </div>
-              )}
-            </div>
-          )}
-
-          {showQuartile && (
-            <div className="conditional-field">
+            {showQuartile && (
               <Field id="quartile" label="Quartile" required error={errors.quartile}>
                 <select id="quartile" name="quartile" className="form-select" value={form.quartile} onChange={handleChange}>
                   <option value="">Select quartile</option>
                   {QUARTILES.map(q=><option key={q} value={q}>{q}</option>)}
                 </select>
               </Field>
-            </div>
-          )}
+            )}
+          </div>
 
           <Field id="doi" label="DOI" required error={errors.doi} hint="e.g. 10.1109/TPAMI.2023.1234567">
             <input id="doi" name="doi" type="text" className="form-input" placeholder="10.xxxx/xxxxxxx" value={form.doi} onChange={handleChange}/>
@@ -932,7 +793,7 @@ export default function Apply() {
         </GlassCard>
       </section>
 
-      {/* ── Success Modal ── */}
+      {/* ── Modals ── */}
       {modal?.type==="success" && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
           <div className="modal-box">
@@ -953,7 +814,6 @@ export default function Apply() {
         </div>
       )}
 
-      {/* ── Duplicate Modal ── */}
       {modal?.type==="duplicate" && (
         <div className="modal-overlay" role="alertdialog" aria-modal="true" aria-labelledby="dup-title">
           <div className="modal-box">
@@ -969,7 +829,6 @@ export default function Apply() {
         </div>
       )}
 
-      {/* ── Error Modal ── */}
       {modal?.type==="error" && (
         <div className="modal-overlay" role="alertdialog" aria-modal="true" aria-labelledby="err-title">
           <div className="modal-box">
