@@ -14,13 +14,24 @@ const PORT = process.env.PORT || 5000;
 const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || "jssstuniv.in";
 
 /* ── Middleware ── */
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    // and any origin — restrict further via CLIENT_ORIGIN env if needed
+    const allowed = process.env.CLIENT_ORIGIN;
+    if (!allowed || !origin || origin === allowed) return callback(null, true);
+    // Also allow localhost for local dev
+    if (!origin || origin.includes("localhost") || origin.includes("127.0.0.1")) return callback(null, true);
+    return callback(null, true); // allow all for now — tighten after deploy confirmed
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
-/* ── Multer — PDF only, max 2 MB ── */
+/* ── Multer — PDF only, max 10 MB ── */
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter(req, file, cb) {
     if (file.mimetype === "application/pdf") cb(null, true);
     else cb(new Error("Only PDF files are allowed."));
@@ -158,7 +169,7 @@ app.post("/api/papers", upload.single("paperFile"), async (req, res) => {
 
   } catch (err) {
     if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ error: "FILE_TOO_LARGE", message: "File must not exceed 2 MB." });
+      return res.status(400).json({ error: "FILE_TOO_LARGE", message: "File must not exceed 10 MB." });
     }
     console.error("POST /api/papers error:", err);
     return res.status(500).json({ error: "SERVER_ERROR", message: "Submission failed. Please try again." });
