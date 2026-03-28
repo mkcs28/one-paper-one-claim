@@ -153,12 +153,12 @@ body {
 }
 
 .navbar-logo-img {
-  width:30px; height:30px;
+  width:75px; height:40px;
   border-radius:7px; object-fit:contain; display:block;
 }
 
 .navbar-logo-fallback {
-  width:30px; height:30px; border-radius:7px;
+  width:75px; height:40px; border-radius:7px;
   background: linear-gradient(135deg, var(--navy), var(--navy-light));
   display:flex; align-items:center; justify-content:center;
   font-size:0.64rem; font-weight:700; color:white;
