@@ -514,6 +514,52 @@ export default function Apply() {
 
           {/* ── Additional Authors / Co-Authors ── */}
           {showAuthors && (
+            <>
+            {/* ── 2. Personal Details ── */}
+            <div className="form-section-label" style={{marginTop:"1.3rem"}}>Personal Details</div>
+            <div className="form-grid">
+              <Field id="name" label="Full Name" required error={errors.name}>
+                <input id="name" name="name" type="text" className="form-input" placeholder="Full legal name" value={form.name} onChange={handleChange}/>
+              </Field>
+              <Field id="department" label="Department" required error={errors.department}>
+                <select id="department" name="department" className="form-select" value={form.department} onChange={handleChange}>
+                  <option value="">Select</option>
+                  {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="form-grid">
+              <Field id="designation" label="Designation" required error={errors.designation}>
+                <select id="designation" name="designation" className="form-select" value={form.designation} onChange={handleChange}>
+                  <option value="">Select</option>
+                  {DESIGNATIONS.map(d=><option key={d} value={d}>{d}</option>)}
+                </select>
+              </Field>
+              <Field id="email" label="Email Address" required error={errors.email}>
+                <input id="email" name="email" type="email" className="form-input" placeholder="name@jssstuniv.in" value={form.email} onChange={handleChange}/>
+              </Field>
+            </div>
+            <div className={form.orgSelect === "Others" ? "form-grid" : ""}>
+              <Field id="orgSelect" label="Organisation" required error={errors.orgSelect}>
+                <select id="orgSelect" name="orgSelect" className="form-select" value={form.orgSelect} onChange={e => {
+                  const val = e.target.value;
+                  setForm(p => ({ ...p, orgSelect:val, organization:val !== "Others" ? "" : p.organization }));
+                  if (errors.orgSelect) setErrors(p => ({ ...p, orgSelect:"" }));
+                  if (errors.organization) setErrors(p => ({ ...p, organization:"" }));
+                }}>
+                  <option value="">Select organisation</option>
+                  {ORG_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </Field>
+              {form.orgSelect === "Others" && (
+                <Field id="organization" label="Enter Organisation Name" required error={errors.organization}>
+                  <input id="organization" name="organization" type="text" className="form-input" placeholder="Full name of your university / institution" value={form.organization} onChange={handleChange}/>
+                </Field>
+              )}
+            </div>
+
+            {/* ── Co-Authors Section ── */}
+            <div className="form-section-label" style={{marginTop:"1.3rem"}}>Co-Authors</div>
             <div className="conditional-field" style={{marginBottom:"0.5rem"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.75rem"}}>
                 <span style={{fontSize:"0.78rem",fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.06em"}}>
@@ -552,7 +598,7 @@ export default function Apply() {
                     </div>
                   </div>
 
-                  {/* Full Name (no prefix) */}
+                  {/* Full Name */}
                   <div className="form-group">
                     <label className="form-label">Full Name <span className="required">*</span></label>
                     <input type="text" className="form-input" placeholder="Full name" value={author.name} onChange={e=>updateAuthor(idx,"name",e.target.value)}/>
@@ -624,7 +670,7 @@ export default function Apply() {
                     <PlusIcon/> Add another affiliation
                   </button>
 
-                  {/* Country only shown (hidden) for International — used for scoring in backend */}
+                  {/* Country only shown for International */}
                   {author.collabType === "International" && (
                     <div className="form-group">
                       <label className="form-label">
@@ -656,50 +702,8 @@ export default function Apply() {
                 </button>
               )}
             </div>
+            </>
           )}
-
-          {/* ── 2. Personal Details ── */}
-          <div className="form-section-label" style={{marginTop:"1.3rem"}}>Personal Details</div>
-          <div className="form-grid">
-            <Field id="name" label="Full Name" required error={errors.name}>
-              <input id="name" name="name" type="text" className="form-input" placeholder="Full legal name" value={form.name} onChange={handleChange}/>
-            </Field>
-            <Field id="department" label="Department" required error={errors.department}>
-              <select id="department" name="department" className="form-select" value={form.department} onChange={handleChange}>
-                <option value="">Select</option>
-                {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
-              </select>
-            </Field>
-          </div>
-          <div className="form-grid">
-            <Field id="designation" label="Designation" required error={errors.designation}>
-              <select id="designation" name="designation" className="form-select" value={form.designation} onChange={handleChange}>
-                <option value="">Select</option>
-                {DESIGNATIONS.map(d=><option key={d} value={d}>{d}</option>)}
-              </select>
-            </Field>
-            <Field id="email" label="Email Address" required error={errors.email}>
-              <input id="email" name="email" type="email" className="form-input" placeholder="name@jssstuniv.in" value={form.email} onChange={handleChange}/>
-            </Field>
-          </div>
-          <div className={form.orgSelect === "Others" ? "form-grid" : ""}>
-            <Field id="orgSelect" label="Organisation" required error={errors.orgSelect}>
-              <select id="orgSelect" name="orgSelect" className="form-select" value={form.orgSelect} onChange={e => {
-                const val = e.target.value;
-                setForm(p => ({ ...p, orgSelect:val, organization:val !== "Others" ? "" : p.organization }));
-                if (errors.orgSelect) setErrors(p => ({ ...p, orgSelect:"" }));
-                if (errors.organization) setErrors(p => ({ ...p, organization:"" }));
-              }}>
-                <option value="">Select organisation</option>
-                {ORG_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </Field>
-            {form.orgSelect === "Others" && (
-              <Field id="organization" label="Enter Organisation Name" required error={errors.organization}>
-                <input id="organization" name="organization" type="text" className="form-input" placeholder="Full name of your university / institution" value={form.organization} onChange={handleChange}/>
-              </Field>
-            )}
-          </div>
 
           {/* ── 3. Journal & Publication Details ── */}
           <div className="form-section-label" style={{marginTop:"1.3rem"}}>Journal &amp; Publication Details</div>
