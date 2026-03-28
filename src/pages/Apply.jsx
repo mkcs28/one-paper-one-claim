@@ -407,7 +407,8 @@ function Field({ id, label, required, error, hint, children }) {
 export default function Apply() {
   const [form, setForm]             = useState(INIT);
   const [errors, setErrors]         = useState({});
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [modal, setModal]           = useState(null);
   const [fileLabel, setFileLabel]   = useState("");
   const [fileError, setFileError]   = useState("");
@@ -457,11 +458,12 @@ export default function Apply() {
       return;
     }
     setSubmitting(true);
+    setUploadProgress(0);
     try {
       const publishingDate = [form.publishingMonth, form.publishingYear].filter(Boolean).join(" ");
       const { paperFile, publishingMonth, publishingYear, ...rest } = form;
       const payload = { ...rest, publishingDate };
-      const result = await submitPaper(payload, paperFile);
+      const result = await submitPaper(payload, paperFile, setUploadProgress);
       submittedFormRef.current = { ...payload, paperFile };
       setModal({ type:"success", ackNumber:result.ackNumber });
       setForm(INIT); setErrors({}); setFileLabel("");
@@ -471,6 +473,7 @@ export default function Apply() {
       else setModal({ type:"error", message:err.message || "Submission failed. Please try again." });
     } finally {
       setSubmitting(false);
+      setUploadProgress(0);
     }
   };
 
@@ -825,6 +828,22 @@ export default function Apply() {
           </div>
 
           <div className="submit-row">
+            {submitting && uploadProgress > 0 && uploadProgress < 100 && (
+              <div style={{width:"100%",marginBottom:"0.75rem"}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.75rem",color:"var(--text-muted)",marginBottom:"4px"}}>
+                  <span>Uploading PDF…</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div style={{height:"6px",borderRadius:"99px",background:"rgba(0,0,0,0.08)",overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${uploadProgress}%`,borderRadius:"99px",background:"linear-gradient(90deg,var(--orange),var(--navy))",transition:"width 0.2s ease"}}/>
+                </div>
+              </div>
+            )}
+            {submitting && uploadProgress >= 100 && (
+              <div style={{width:"100%",marginBottom:"0.75rem",fontSize:"0.75rem",color:"var(--text-muted)",textAlign:"center"}}>
+                ✅ Upload complete — processing submission…
+              </div>
+            )}
             <button type="submit" className="btn-primary" style={{minWidth:"162px",padding:"0.8rem 2.2rem",opacity:submitting?0.7:1}} disabled={submitting}>
               {submitting?"Submitting…":"Submit Paper"}
             </button>
