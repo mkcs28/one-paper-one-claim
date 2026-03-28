@@ -29,7 +29,7 @@ const SORT_OPTIONS = [
 ];
 
 /* ── Marks Calculator (mirrors Apply.jsx logic) ── */
-function calculateMarks(formData) {
+function calculateMarks(formData, viewerName) {
   const indexing      = (formData.indexing   || "").toLowerCase();
   const paperType     = (formData.paperType  || "").toLowerCase();
   const quartile      = (formData.quartile   || "").toUpperCase();
@@ -42,7 +42,22 @@ function calculateMarks(formData) {
     const sel = (a.orgSelect || "").trim();
     return sel === "" || sel === HOST_UNIVERSITY_FULL;
   });
-  const totalJssAuthors = (submitterIsJss ? 1 : 0) + jssCoAuthors.length;
+  const jssCoAuthorCount = (formData.jssCoAuthorCount !== undefined && formData.jssCoAuthorCount !== null)
+    ? parseInt(formData.jssCoAuthorCount) || jssCoAuthors.length
+    : jssCoAuthors.length;
+
+  // If viewerName is provided, determine their role in this paper
+  let effectiveAuthorType = authorType;
+  let isCoAuthorView = false;
+  if (viewerName) {
+    const viewerLower = viewerName.toLowerCase();
+    // Check if viewer is a co-author on this paper
+    const asCoAuthor = coAuthors.find(a => a.name?.toLowerCase() === viewerLower);
+    if (asCoAuthor) {
+      effectiveAuthorType = asCoAuthor.authorRole || "Co-Author";
+      isCoAuthorView = true;
+    }
+  }
 
   const hasIntlCollab = coAuthors.some(a => {
     const ct = (a.collabType || "").toLowerCase();
@@ -60,14 +75,18 @@ function calculateMarks(formData) {
     else if (["Q3","Q4"].includes(quartile)) basePoints = 3;
     else                                      basePoints = 3;
     const totalPts = basePoints + intlBonus;
-    const isFirstOrCorr = ["First Author","Corresponding Author"].includes(authorType);
+    const isFirstOrCorr = effectiveAuthorType === "First/Corresponding Author"
+      || effectiveAuthorType === "First Author"
+      || effectiveAuthorType === "Corresponding Author";
     let allocatedPoints;
     if (isFirstOrCorr) {
       allocatedPoints = totalPts;
     } else {
-      allocatedPoints = totalJssAuthors > 0 ? totalPts / totalJssAuthors : totalPts;
+      // Co-author: shares full points equally among JSS co-authors
+      const shareAmong = jssCoAuthorCount > 0 ? jssCoAuthorCount : 1;
+      allocatedPoints = totalPts / shareAmong;
     }
-    return { points: Math.min(parseFloat(allocatedPoints.toFixed(2)), 15), category: "Scopus/WoS Journal" };
+    return { points: Math.min(parseFloat(allocatedPoints.toFixed(2)), 15), category: "Scopus/WoS Journal", isCoAuthorView };
   } else if (["conference","book chapter","book"].includes(paperType) && isScopusWos) {
     let basePoints;
     if (paperType === "book") {
@@ -76,9 +95,9 @@ function calculateMarks(formData) {
       basePoints = 2;
     }
     basePoints += intlBonus;
-    return { points: Math.min(basePoints, 5), category: "Scopus/WoS Conf/Book" };
+    return { points: Math.min(basePoints, 5), category: "Scopus/WoS Conf/Book", isCoAuthorView };
   } else {
-    return { points: 0, category: "Non-indexed" };
+    return { points: 0, category: "Non-indexed", isCoAuthorView };
   }
 }
 
@@ -87,11 +106,10 @@ function PersonSummary({ papers, searchName, searchDept }) {
   if (!papers || papers.length === 0) return null;
 
   const totalMarks = papers.reduce((sum, p) => {
-    const m = calculateMarks(p);
+    const m = calculateMarks(p, searchName);
     return sum + (m.points || 0);
   }, 0);
 
-  // Use first paper's info for the person profile
   const sample = papers[0];
 
   return (
@@ -114,12 +132,11 @@ function PersonSummary({ papers, searchName, searchDept }) {
           display:"flex",alignItems:"center",justifyContent:"center",
           flexShrink:0,
         }}>
-          <UserIcon style={{width:26,height:26,stroke:"white"}}/>
           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26,stroke:"white"}}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
         </div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:"1.08rem",fontWeight:700,color:"var(--navy)",marginBottom:"0.2rem",textTransform:"capitalize"}}>
-            {sample.name || searchName}
+            {searchName || sample.name}
           </div>
           <div style={{fontSize:"0.82rem",color:"var(--text-secondary)",fontWeight:500}}>
             {sample.department || searchDept || "—"} · {sample.designation || "—"}
@@ -128,7 +145,6 @@ function PersonSummary({ papers, searchName, searchDept }) {
             <div style={{fontSize:"0.78rem",color:"var(--text-muted)",marginTop:"0.15rem"}}>{sample.email}</div>
           )}
         </div>
-        {/* Total Marks Badge */}
         <div style={{
           textAlign:"center",
           background:"linear-gradient(135deg,rgba(22,163,74,0.12),rgba(22,163,74,0.05))",
@@ -149,7 +165,7 @@ function PersonSummary({ papers, searchName, searchDept }) {
         </div>
       </div>
 
-      {/* Paper List with Individual Marks */}
+      {/* Paper List */}
       <div style={{
         background:"var(--glass-bg)",
         border:"1px solid var(--border)",
@@ -168,16 +184,15 @@ function PersonSummary({ papers, searchName, searchDept }) {
           gap:"1rem",
         }}>
           <span>Paper</span>
-          <span style={{minWidth:80,textAlign:"center"}}>Category</span>
+          <span style={{minWidth:80,textAlign:"center"}}>Role</span>
           <span style={{minWidth:70,textAlign:"right"}}>Marks</span>
         </div>
         {papers.map((paper, idx) => {
-          const m = calculateMarks(paper);
+          const m = calculateMarks(paper, searchName);
           return (
-            <PaperRow key={paper._id || idx} paper={paper} marks={m} idx={idx} total={papers.length} />
+            <PaperRow key={paper._id || idx} paper={paper} marks={m} idx={idx} total={papers.length} viewerName={searchName} />
           );
         })}
-        {/* Total row */}
         <div style={{
           padding:"0.7rem 1.1rem",
           borderTop:"2px solid var(--border)",
@@ -199,13 +214,22 @@ function PersonSummary({ papers, searchName, searchDept }) {
   );
 }
 
-function PaperRow({ paper, marks, idx, total }) {
+function PaperRow({ paper, marks, idx, total, viewerName }) {
   const [expanded, setExpanded] = useState(false);
   const isLast = idx === total - 1;
 
+  // Determine this viewer's role in the paper
+  const viewerRole = (() => {
+    if (!viewerName) return paper.authorType || "";
+    const vl = viewerName.toLowerCase();
+    if (paper.name?.toLowerCase() === vl) return paper.authorType || "Submitter";
+    const asCoAuthor = (paper.authors || []).find(a => a.name?.toLowerCase() === vl);
+    if (asCoAuthor) return asCoAuthor.authorRole || "Co-Author";
+    return paper.authorType || "";
+  })();
+
   return (
     <div style={{borderBottom: isLast ? "none" : "1px solid var(--border)"}}>
-      {/* Summary row */}
       <div
         onClick={() => setExpanded(v => !v)}
         style={{
@@ -222,10 +246,7 @@ function PaperRow({ paper, marks, idx, total }) {
         onMouseLeave={e => e.currentTarget.style.background=expanded?"rgba(245,110,0,0.04)":"transparent"}
       >
         <div style={{minWidth:0}}>
-          <div style={{
-            fontSize:"0.86rem",fontWeight:600,color:"var(--text-primary)",
-            marginBottom:"0.25rem",lineHeight:1.35,
-          }}>
+          <div style={{fontSize:"0.86rem",fontWeight:600,color:"var(--text-primary)",marginBottom:"0.25rem",lineHeight:1.35}}>
             {paper.paperTitle}
           </div>
           <div style={{fontSize:"0.75rem",color:"var(--text-muted)",display:"flex",gap:"0.6rem",flexWrap:"wrap"}}>
@@ -239,23 +260,21 @@ function PaperRow({ paper, marks, idx, total }) {
         <div style={{
           minWidth:80,textAlign:"center",
           fontSize:"0.72rem",fontWeight:600,
-          color: marks.category === "Non-indexed" ? "var(--text-muted)" : "var(--navy-light)",
+          color: marks.isCoAuthorView ? "var(--orange)" : "var(--navy-light)",
           padding:"3px 8px",
-          background: marks.category === "Non-indexed" ? "transparent" : "rgba(22,48,100,0.07)",
+          background: marks.isCoAuthorView ? "rgba(245,110,0,0.08)" : "rgba(22,48,100,0.07)",
           borderRadius:"var(--radius-pill)",
           alignSelf:"start",
           marginTop:"2px",
+          whiteSpace:"nowrap",
         }}>
-          {marks.category}
+          {viewerRole || marks.category}
         </div>
         <div style={{
           minWidth:70,textAlign:"right",alignSelf:"start",marginTop:"2px",
           display:"flex",alignItems:"center",gap:"0.3rem",justifyContent:"flex-end",
         }}>
-          <span style={{
-            fontSize:"1rem",fontWeight:800,
-            color: marks.points > 0 ? "var(--green)" : "var(--text-muted)",
-          }}>
+          <span style={{fontSize:"1rem",fontWeight:800,color: marks.points > 0 ? "var(--green)" : "var(--text-muted)"}}>
             {marks.points.toFixed(2)}
           </span>
           <span style={{fontSize:"0.72rem",color:"var(--text-muted)",fontWeight:500}}>pts</span>
@@ -265,16 +284,11 @@ function PaperRow({ paper, marks, idx, total }) {
         </div>
       </div>
 
-      {/* Expanded application details */}
       {expanded && (
-        <div style={{
-          padding:"0 1.1rem 1rem 1.1rem",
-          background:"rgba(245,110,0,0.03)",
-          borderTop:"1px solid rgba(245,110,0,0.1)",
-        }}>
+        <div style={{padding:"0 1.1rem 1rem 1.1rem",background:"rgba(245,110,0,0.03)",borderTop:"1px solid rgba(245,110,0,0.1)"}}>
           <div className="result-expanded-grid" style={{paddingTop:"0.75rem"}}>
             {paper.ackNumber && <div className="result-expanded-item"><span className="result-expanded-label">Ack. No</span><span className="result-expanded-value" style={{fontWeight:600,color:"var(--navy-light)"}}>{paper.ackNumber}</span></div>}
-            {paper.authorType && <div className="result-expanded-item"><span className="result-expanded-label">Author Role</span><span className="result-expanded-value">{paper.authorType}</span></div>}
+            {viewerRole && <div className="result-expanded-item"><span className="result-expanded-label">Your Role</span><span className="result-expanded-value" style={{fontWeight:600,color:marks.isCoAuthorView?"var(--orange)":"var(--navy-light)"}}>{viewerRole}</span></div>}
             {paper.publisher && <div className="result-expanded-item"><span className="result-expanded-label">Publisher</span><span className="result-expanded-value">{paper.publisher}{paper.publisherType && <span style={{marginLeft:"0.4rem",fontSize:"0.72rem",color:"var(--orange)",fontWeight:600}}>({paper.publisherType})</span>}</span></div>}
             {paper.designation && <div className="result-expanded-item"><span className="result-expanded-label">Designation</span><span className="result-expanded-value">{paper.designation}</span></div>}
             {paper.preprintAvailable && <div className="result-expanded-item"><span className="result-expanded-label">Preprint</span><span className="result-expanded-value" style={{color:paper.preprintAvailable==="yes"?"var(--green)":"var(--text-muted)",fontWeight:600,textTransform:"capitalize"}}>{paper.preprintAvailable}</span></div>}
@@ -299,7 +313,6 @@ function PaperRow({ paper, marks, idx, total }) {
                 </span>
               </div>
             )}
-            {/* Marks breakdown */}
             <div className="result-expanded-item" style={{gridColumn:"span 2",marginTop:"0.35rem"}}>
               <span className="result-expanded-label">Marks</span>
               <span className="result-expanded-value" style={{color:"var(--green)",fontWeight:700,fontSize:"0.9rem"}}>
@@ -315,18 +328,17 @@ function PaperRow({ paper, marks, idx, total }) {
 
 /* ── Person Search Modal ── */
 function PersonSearchModal({ onClose }) {
-  const [name, setName]         = useState("");
-  const [dept, setDept]         = useState("");
-  const [papers, setPapers]     = useState([]);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const [searched, setSearched] = useState(false);
+  const [name, setName]           = useState("");
+  const [dept, setDept]           = useState("");
+  const [papers, setPapers]       = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
+  const [searched, setSearched]   = useState(false);
   const [allPapers, setAllPapers] = useState([]);
   const [loadingAll, setLoadingAll] = useState(true);
 
   const DEPARTMENTS_SEARCH = ["Computer Science","Information Technology","Electronics & Communication","Electrical Engineering","Mechanical Engineering","Civil Engineering","Management Studies","Basic Sciences","Other"];
 
-  // Fetch all papers once to build name list
   useEffect(() => {
     (async () => {
       try {
@@ -337,23 +349,54 @@ function PersonSearchModal({ onClose }) {
     })();
   }, []);
 
-  const uniqueNames = useMemo(() => {
-    const names = [...new Set(allPapers.map(p => p.name).filter(Boolean))].sort();
-    return names;
-  }, [allPapers]);
+  // Names filtered by selected dept (or all if no dept selected)
+  const filteredNames = useMemo(() => {
+    const pool = dept
+      ? allPapers.filter(p => p.department?.toLowerCase() === dept.toLowerCase())
+      : allPapers;
+    return [...new Set(pool.map(p => p.name).filter(Boolean))].sort();
+  }, [allPapers, dept]);
+
+  // Reset name when dept changes and name no longer in filtered list
+  const handleDeptChange = (val) => {
+    setDept(val);
+    setError("");
+    // If current name not in new filtered list, reset it
+    const newPool = val
+      ? allPapers.filter(p => p.department?.toLowerCase() === val.toLowerCase())
+      : allPapers;
+    const newNames = [...new Set(newPool.map(p => p.name).filter(Boolean))];
+    if (name && !newNames.includes(name)) setName("");
+  };
 
   const handleSearch = async () => {
-    if (!name && !dept) { setError("Please select a name or department."); return; }
+    if (!name && !dept) { setError("Please select a department or name."); return; }
     setLoading(true); setError(""); setPapers([]); setSearched(false);
     try {
-      const data = await fetchPapers({ q: name, dept });
-      const filtered = name
-        ? data.filter(p => p.name?.toLowerCase() === name.toLowerCase())
-        : data;
-      const deptFiltered = dept
-        ? filtered.filter(p => p.department?.toLowerCase().includes(dept.toLowerCase()))
-        : filtered;
-      setPapers(deptFiltered);
+      // Fetch all papers and find those where this person is submitter OR co-author
+      const data = await fetchPapers({});
+      const nameLower = name.toLowerCase();
+      const deptLower = dept.toLowerCase();
+
+      const matched = data.filter(p => {
+        const isSubmitter = name ? p.name?.toLowerCase() === nameLower : true;
+        const deptMatch   = dept ? p.department?.toLowerCase() === deptLower : true;
+
+        if (name) {
+          // Check if person is the submitter
+          const submitterMatch = p.name?.toLowerCase() === nameLower && (dept ? p.department?.toLowerCase() === deptLower : true);
+          // Check if person is a co-author on this paper
+          const coAuthorMatch = (p.authors || []).some(a =>
+            a.name?.toLowerCase() === nameLower &&
+            (a.orgSelect === "" || a.orgSelect === HOST_UNIVERSITY_FULL)
+          );
+          return submitterMatch || coAuthorMatch;
+        }
+        // dept only — return all papers from that dept
+        return deptMatch;
+      });
+
+      setPapers(matched);
       setSearched(true);
     } catch { setError("Search failed. Please try again."); }
     finally { setLoading(false); }
@@ -361,25 +404,27 @@ function PersonSearchModal({ onClose }) {
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box" style={{ maxWidth:620, textAlign:"left", maxHeight:"90vh", overflowY:"auto", padding:"1.5rem" }}>
+      <div className="modal-box" style={{ maxWidth:640, textAlign:"left", maxHeight:"90vh", overflowY:"auto", padding:"1.5rem" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.1rem" }}>
           <h2 className="modal-title" style={{ margin:0, fontSize:"1.05rem" }}>Person Lookup — Marks &amp; Papers</h2>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--text-muted)", fontSize:"1.2rem" }}>✕</button>
         </div>
 
         <div style={{ display:"flex", gap:"0.6rem", marginBottom:"0.5rem", flexWrap:"wrap" }}>
-          <div style={{ flex:2, minWidth:140 }}>
-            <select className="form-select" value={name} onChange={e => { setName(e.target.value); setError(""); }}
-              disabled={loadingAll} style={{ width:"100%" }}>
-              <option value="">{loadingAll ? "Loading names…" : "Select Faculty / Author Name"}</option>
-              {uniqueNames.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          <div style={{ flex:1, minWidth:120 }}>
-            <select className="form-select" value={dept} onChange={e => { setDept(e.target.value); setError(""); }}
+          {/* Department first */}
+          <div style={{ flex:1, minWidth:140 }}>
+            <select className="form-select" value={dept} onChange={e => handleDeptChange(e.target.value)}
               style={{ width:"100%" }}>
               <option value="">All Departments</option>
               {DEPARTMENTS_SEARCH.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          {/* Name filtered by dept */}
+          <div style={{ flex:2, minWidth:160 }}>
+            <select className="form-select" value={name} onChange={e => { setName(e.target.value); setError(""); }}
+              disabled={loadingAll} style={{ width:"100%" }}>
+              <option value="">{loadingAll ? "Loading…" : dept ? `All names in ${dept}` : "All Faculty / Authors"}</option>
+              {filteredNames.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <button className="btn-primary" onClick={handleSearch} disabled={loading || loadingAll}
@@ -387,6 +432,11 @@ function PersonSearchModal({ onClose }) {
             {loading ? "…" : "Search"}
           </button>
         </div>
+        {dept && !name && (
+          <div style={{fontSize:"0.75rem",color:"var(--text-muted)",marginBottom:"0.5rem"}}>
+            ℹ Searching all faculty in <strong>{dept}</strong>. Select a name to narrow down.
+          </div>
+        )}
 
         {error && (
           <div style={{ padding:"0.65rem 1rem", background:"rgba(220,38,38,0.07)", border:"1px solid rgba(220,38,38,0.18)", borderRadius:"var(--radius-sm)", fontSize:"0.83rem", color:"#dc2626", marginBottom:"0.75rem" }}>
@@ -396,7 +446,7 @@ function PersonSearchModal({ onClose }) {
 
         {searched && papers.length === 0 && !loading && (
           <div style={{ padding:"1.5rem", textAlign:"center", color:"var(--text-muted)", fontSize:"0.88rem" }}>
-            No papers found for this person.
+            No papers found for this selection.
           </div>
         )}
 

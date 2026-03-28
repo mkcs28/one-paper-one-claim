@@ -4,8 +4,8 @@ import { submitPaper } from "../api.js";
 
 /* ── Constants ── */
 const PAPER_TYPES        = ["Journal", "Conference", "Book Chapter", "Book"];
-const AUTHOR_TYPES       = ["First Author", "Co-Author", "Corresponding Author"];
-const COAUTHOR_TYPES     = ["First Author", "Co-Author", "Corresponding Author"];
+const AUTHOR_TYPES       = ["First/Corresponding Author", "Co-Author"];
+const COAUTHOR_TYPES     = ["First/Corresponding Author", "Co-Author"];
 const COLLAB_TYPES       = ["In-house", "National", "International"];
 const DEPARTMENTS        = ["Computer Science","Information Technology","Electronics & Communication","Electrical Engineering","Mechanical Engineering","Civil Engineering","Management Studies","Basic Sciences","Other"];
 const DESIGNATIONS       = ["Professor","Associate Professor","Assistant Professor","Lecturer","Research Scholar","Other"];
@@ -50,6 +50,7 @@ const INIT = {
   orgSelect:"", organization:"",
   email:"",
   paperTitle:"", paperType:"", authorType:"",
+  jssCoAuthorCount: 0,
   authors:[],
   journal:"", publisher:"", publisherType:"", publishingMonth:"", publishingYear:"",
   indexing:"", quartile:"",
@@ -96,7 +97,11 @@ function calculateMarks(formData) {
     const sel = (a.orgSelect || "").trim();
     return sel === "" || sel === HOST_UNIVERSITY_FULL;
   });
-  const totalJssAuthors = (submitterIsJss ? 1 : 0) + jssCoAuthors.length;
+  // Use explicit count if provided, else derive from co-author list
+  const jssCoAuthorCount = (formData.jssCoAuthorCount !== undefined && formData.jssCoAuthorCount !== null)
+    ? parseInt(formData.jssCoAuthorCount) || jssCoAuthors.length
+    : jssCoAuthors.length;
+  const totalJssAuthors = (submitterIsJss ? 1 : 0) + jssCoAuthorCount;
 
   const hasIntlCollab = coAuthors.some(a => {
     const ct = (a.collabType || "").toLowerCase();
@@ -119,22 +124,23 @@ function calculateMarks(formData) {
     else                                      basePoints = 3;
 
     const totalPts = basePoints + intlBonus;
-    const isFirstOrCorr = ["First Author","Corresponding Author"].includes(authorType);
+    const isFirstOrCorr = authorType === "First/Corresponding Author";
     let allocatedPoints;
 
     if (isFirstOrCorr) {
-      if (totalJssAuthors === 1) {
-        allocatedPoints = totalPts;
-        breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As ${authorType} (sole JSSSTU author): full ${totalPts} point${totalPts!==1?"s":""} awarded.`;
+      // First/Corresponding always gets full points
+      allocatedPoints = totalPts;
+      if (jssCoAuthorCount === 0) {
+        breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As First/Corresponding Author (sole JSSSTU author): full ${totalPts} pt${totalPts!==1?"s":""} awarded.`;
       } else {
-        const otherShare = totalPts / totalJssAuthors;
-        allocatedPoints = totalPts;
-        breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As ${authorType}: full ${totalPts} pt${totalPts!==1?"s":""}. The remaining ${totalJssAuthors-1} JSSSTU co-author${totalJssAuthors>2?"s":""} equally share ${totalPts} pts (${otherShare.toFixed(2)} pts each).`;
+        const coShare = totalPts / jssCoAuthorCount;
+        breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As First/Corresponding Author: full ${totalPts} pts. The ${jssCoAuthorCount} JSSSTU co-author${jssCoAuthorCount>1?"s":""} equally share ${totalPts} pts (${coShare.toFixed(2)} pts each).`;
       }
     } else {
-      const perAuthor = totalPts / totalJssAuthors;
-      allocatedPoints = perAuthor;
-      breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As Co-Author: ${totalPts} pts shared equally among ${totalJssAuthors} JSSSTU authors = ${perAuthor.toFixed(2)} pts each.`;
+      // Co-Author: shares full points equally with all other JSS co-authors (excluding first/corr)
+      const shareAmong = jssCoAuthorCount > 0 ? jssCoAuthorCount : 1;
+      allocatedPoints = totalPts / shareAmong;
+      breakdown = `${quartile||"—"} paper (${basePoints} pts)${intlBonus ? " + 1 Intl. Collaboration" : ""}. As Co-Author: ${totalPts} pts shared equally among ${shareAmong} JSSSTU co-author${shareAmong>1?"s":""} = ${allocatedPoints.toFixed(2)} pts each.`;
     }
     return { category, maxPoints, basePoints, intlBonus, allocatedPoints: Math.min(parseFloat(allocatedPoints.toFixed(2)), maxPoints), breakdown, hasIntlCollab };
 
@@ -560,6 +566,27 @@ export default function Apply() {
 
             {/* ── Co-Authors Section ── */}
             <div className="form-section-label" style={{marginTop:"1.3rem"}}>Co-Authors</div>
+
+            {/* No. of Co-Authors from JSS STU */}
+            <div className="form-group" style={{marginBottom:"1rem"}}>
+              <label className="form-label">
+                No. of Co-Authors from JSS Science and Technology University
+                <span style={{marginLeft:"0.5rem",fontSize:"0.7rem",fontWeight:400,color:"var(--text-muted)"}}>(Used for marks calculation)</span>
+              </label>
+              <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
+                <input type="number" min="0" max={MAX_AUTHORS} className="form-input"
+                  style={{width:100}}
+                  value={form.jssCoAuthorCount}
+                  onChange={e => setForm(p => ({ ...p, jssCoAuthorCount: Math.max(0, parseInt(e.target.value)||0) }))}
+                />
+                <span style={{fontSize:"0.8rem",color:"var(--text-muted)"}}>
+                  {form.jssCoAuthorCount === 0
+                    ? "No JSS co-authors"
+                    : `${form.jssCoAuthorCount} JSS co-author${form.jssCoAuthorCount > 1 ? "s" : ""} will share marks equally`}
+                </span>
+              </div>
+            </div>
+
             <div className="conditional-field" style={{marginBottom:"0.5rem"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.75rem"}}>
                 <span style={{fontSize:"0.78rem",fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.06em"}}>
@@ -838,7 +865,7 @@ export default function Apply() {
               <div style={{fontSize:"0.7rem",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--orange)",marginBottom:"4px"}}>Acknowledgement Number</div>
               <div style={{fontSize:"1.3rem",fontWeight:700,color:"var(--navy)",letterSpacing:"1px"}}>{modal.ackNumber}</div>
             </div>
-            <p className="modal-message" style={{marginBottom:"0.6rem"}}>Your paper has been registered. Click below to download your <strong>Report PDF</strong> — the submission report and your uploaded paper combined into one file.</p>
+            <p className="modal-message" style={{marginBottom:"0.6rem"}}>Your paper has been registered. Click below to download your <strong>merged PDF</strong> — the submission report and your uploaded paper combined into one file.</p>
             <div style={{display:"flex",gap:"0.75rem",justifyContent:"center",flexWrap:"wrap"}}>
               <button className="btn-primary" onClick={handleDownloadReport} disabled={downloading} style={{display:"flex",alignItems:"center",gap:"0.45rem"}}>
                 <DownloadIcon/> {downloading ? "Preparing PDF…" : "Download Merged PDF"}
