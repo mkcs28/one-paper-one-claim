@@ -1,15 +1,37 @@
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-/* ── Submit paper (multipart with file) ── */
-export async function submitPaper(formData, file) {
+/* ── Submit paper (multipart with file) — supports upload progress ── */
+export async function submitPaper(formData, file, onProgress) {
   const body = new FormData();
   body.append("data", JSON.stringify(formData));
   if (file) body.append("paperFile", file);
 
-  const res = await fetch(`${BASE}/api/papers`, { method: "POST", body });
-  const json = await res.json();
-  if (!res.ok) throw { status: res.status, ...json };
-  return json;
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}/api/papers`);
+
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+    }
+
+    xhr.onload = () => {
+      try {
+        const json = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) resolve(json);
+        else reject({ status: xhr.status, ...json });
+      } catch {
+        reject({ status: xhr.status, message: "Invalid server response." });
+      }
+    };
+
+    xhr.onerror = () => reject({ message: "Network error. Please check your connection." });
+    xhr.ontimeout = () => reject({ message: "Upload timed out. Please try again." });
+    xhr.timeout = 120000; // 2 min timeout for large files
+
+    xhr.send(body);
+  });
 }
 
 /* ── Fetch papers with optional filters / search / sort ── */
