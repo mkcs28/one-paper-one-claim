@@ -838,7 +838,7 @@ export default function Apply() {
               <div style={{fontSize:"0.7rem",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--orange)",marginBottom:"4px"}}>Acknowledgement Number</div>
               <div style={{fontSize:"1.3rem",fontWeight:700,color:"var(--navy)",letterSpacing:"1px"}}>{modal.ackNumber}</div>
             </div>
-            <p className="modal-message" style={{marginBottom:"0.6rem"}}>Your paper has been registered. Click below to download your <strong>merged PDF</strong> — the submission report and your uploaded paper combined into one file.</p>
+            <p className="modal-message" style={{marginBottom:"0.6rem"}}>Your paper has been registered. Click below to download your <strong>Report PDF</strong> — the submission report and your uploaded paper combined into one file.</p>
             <div style={{display:"flex",gap:"0.75rem",justifyContent:"center",flexWrap:"wrap"}}>
               <button className="btn-primary" onClick={handleDownloadReport} disabled={downloading} style={{display:"flex",alignItems:"center",gap:"0.45rem"}}>
                 <DownloadIcon/> {downloading ? "Preparing PDF…" : "Download Merged PDF"}
