@@ -117,54 +117,57 @@ app.post("/api/papers", upload.single("paperFile"), async (req, res) => {
     });
     await paper.save();
 
-    /* 4. Build merged PDF (cover sheet + uploaded paper) */
-    let mergedPdfBuffer = null;
-    const mergedFileName = `OPOC-Report-${ackNumber}.pdf`;
-    try {
-      mergedPdfBuffer = await buildMergedPdf(
-        { ackNumber, data, submittedAt: paper.createdAt },
-        req.file?.buffer || null
-      );
-      console.log(`✅ Merged PDF built — ${(mergedPdfBuffer.length / 1024).toFixed(1)} KB`);
-    } catch (err) {
-      console.error("❌ PDF merge error:", err.message);
-    }
-
-    /* 4a. Email — applicant (with merged PDF) */
-    try {
-      await sendPaperAck({
-        to: data.email,
-        name: `${data.prefix} ${data.name}`,
-        ackNumber,
-        data,
-        submittedAt: paper.createdAt,
-        pdfBuffer: mergedPdfBuffer,
-        pdfName:   mergedFileName,
-      });
-      console.log(`✅ Applicant email sent → ${data.email}`);
-    } catch (err) {
-      console.error("❌ Applicant email failed:", err.message);
-    }
-
-    /* 4b. Email — Office of Dean Research (with merged PDF) */
-    try {
-      await sendPaperNotifyDean({
-        ackNumber,
-        data,
-        submittedAt: paper.createdAt,
-        pdfBuffer:   mergedPdfBuffer,
-        pdfName:     mergedFileName,
-      });
-      const deanMail = process.env.DEAN_RESEARCH_MAIL || "office.deanres@jssstuniv.in";
-      console.log(`✅ Dean Research email sent → ${deanMail}`);
-    } catch (err) {
-      console.error("❌ Dean Research email failed:", err.message);
-    }
-
-    return res.status(201).json({
+    /* 4. Respond immediately — don't make the user wait for PDF/email */
+    res.status(201).json({
       success: true,
       ackNumber,
       message: "Paper submitted successfully.",
+    });
+
+    /* 5. Build merged PDF + send emails in the background */
+    setImmediate(async () => {
+      let mergedPdfBuffer = null;
+      const mergedFileName = `OPOC-Report-${ackNumber}.pdf`;
+      try {
+        mergedPdfBuffer = await buildMergedPdf(
+          { ackNumber, data, submittedAt: paper.createdAt },
+          req.file?.buffer || null
+        );
+        console.log(`✅ Merged PDF built — ${(mergedPdfBuffer.length / 1024).toFixed(1)} KB`);
+      } catch (err) {
+        console.error("❌ PDF merge error:", err.message);
+      }
+
+      /* 5a. Email — applicant (with merged PDF) */
+      try {
+        await sendPaperAck({
+          to: data.email,
+          name: `${data.prefix} ${data.name}`,
+          ackNumber,
+          data,
+          submittedAt: paper.createdAt,
+          pdfBuffer: mergedPdfBuffer,
+          pdfName:   mergedFileName,
+        });
+        console.log(`✅ Applicant email sent → ${data.email}`);
+      } catch (err) {
+        console.error("❌ Applicant email failed:", err.message);
+      }
+
+      /* 5b. Email — Office of Dean Research (with merged PDF) */
+      try {
+        await sendPaperNotifyDean({
+          ackNumber,
+          data,
+          submittedAt: paper.createdAt,
+          pdfBuffer:   mergedPdfBuffer,
+          pdfName:     mergedFileName,
+        });
+        const deanMail = process.env.DEAN_RESEARCH_MAIL || "office.deanres@jssstuniv.in";
+        console.log(`✅ Dean Research email sent → ${deanMail}`);
+      } catch (err) {
+        console.error("❌ Dean Research email failed:", err.message);
+      }
     });
 
   } catch (err) {
