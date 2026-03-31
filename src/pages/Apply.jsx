@@ -841,7 +841,7 @@ export default function Apply() {
             )}
             {submitting && uploadProgress >= 100 && (
               <div style={{width:"100%",marginBottom:"0.75rem",fontSize:"0.75rem",color:"var(--text-muted)",textAlign:"center"}}>
-                ✅ Upload complete — processing submission…
+                 Upload complete — processing submission…
               </div>
             )}
             <button type="submit" className="btn-primary" style={{minWidth:"162px",padding:"0.8rem 2.2rem",opacity:submitting?0.7:1}} disabled={submitting}>
